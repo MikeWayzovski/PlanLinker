@@ -38,9 +38,9 @@ export const useWorkspaceApi = () => {
         setWorkspaceApi(api);
 
         await api.ui.setMenu({
-          title: 'SheetHop',
+          title: 'Plan Linker',
           icon: `${window.location.origin}/sheethop-logo.svg`,
-          command: 'SHEETHOP_MAIN_MENU',
+          command: 'PLAN_LINKER_MAIN_MENU',
         });
 
         const token = await api.extension.getPermission('accesstoken');

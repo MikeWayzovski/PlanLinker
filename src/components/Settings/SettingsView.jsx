@@ -40,7 +40,7 @@ const SettingsView = ({
     <div className="settings-page d-flex flex-column gap-3">
       <SectionCard
         title="Project and region"
-        description="SheetHop searches the active Trimble Connect project for matching detail PDFs."
+        description="Plan Linker searches the active Trimble Connect project for matching detail PDFs."
       >
         <div className="row g-3">
           <div className="col-md-6">

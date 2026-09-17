@@ -2,7 +2,7 @@ import React from 'react';
 import ModusIcon from '../Modus/ModusIcon';
 
 const LoginScreen = ({ isLoading, isCallback, isConfigured, error, onLogin }) => {
-  const title = isCallback ? 'Signing in' : isLoading ? 'Checking your session' : 'Sign in to SheetHop';
+  const title = isCallback ? 'Signing in' : isLoading ? 'Checking your session' : 'Sign in to Plan Linker';
   const body = isCallback
     ? 'Finishing Trimble ID sign-in. This only takes a moment.'
     : isLoading

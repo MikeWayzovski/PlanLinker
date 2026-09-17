@@ -22,7 +22,7 @@ const Toolbar = ({
     <div className="d-flex align-items-center gap-2 min-w-0 me-auto">
       <ModusIcon name="file-pdf" size="22px" extraClasses="text-primary flex-shrink-0" />
       <h1 className="h6 mb-0 text-truncate" title={title}>
-        {title || 'SheetHop'}
+        {title || 'Plan Linker'}
       </h1>
     </div>
 

@@ -1,6 +1,6 @@
-# SheetHop (PlanLinker)
+# Plan Linker
 
-Interactive 2D PDF viewer for Trimble Connect. SheetHop turns drawing codes on an
+Interactive 2D PDF viewer for Trimble Connect. Plan Linker turns drawing codes on an
 overview sheet (`DET-01`, `DETAIL-12`, `D-3`) into clickable hotspots, then looks up
 the matching detail PDF in the active project.
 
@@ -37,11 +37,16 @@ src/
 This is a static Vite SPA. `vercel.json` rewrites every path to `index.html` so
 `/callback` and `/logout-callback` work with Trimble ID.
 
-Set the `VITE_*` values from `.env.example` in the Vercel project. Register
-`https://<your-host>/manifest.json` as a Trimble Connect extension.
+Production runs at <https://plan-linker.vercel.app>. Register
+`https://plan-linker.vercel.app/manifest.json` as a Trimble Connect extension.
 
-Embedded mode does not need Trimble ID. Standalone sign-in only works on the
-redirect URLs registered with the Trimble ID application.
+Standalone Trimble ID uses the public PKCE client in `.env.production` (`plan-linker`,
+scope `openid plan-linker`). Redirect URLs must stay
+`https://plan-linker.vercel.app/callback` and
+`https://plan-linker.vercel.app/logout-callback`.
+
+Embedded mode does not need Trimble ID. Preview deployments use a different origin,
+so standalone sign-in only works on the production domain.
 
 Do not rely on `npm run dev` for Trimble Connect testing: the Workspace iframe
 token and Vercel `VITE_*` values are not present on localhost.
