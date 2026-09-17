@@ -8,7 +8,7 @@ import Spinner from './components/Modus/Spinner';
 import EmptyState from './components/Modus/EmptyState';
 import ModusIcon from './components/Modus/ModusIcon';
 import PDFViewer from './components/Viewer/PDFViewer';
-import FilePicker from './components/Viewer/FilePicker';
+import FileExplorer from './components/FileExplorer/FileExplorer';
 import MatchPicker from './components/Viewer/MatchPicker';
 import SettingsView from './components/Settings/SettingsView';
 
@@ -18,7 +18,7 @@ import { useDrawingSearch } from './hooks/useDrawingSearch';
 import { useWorkspaceApi, SETTINGS_EVENT } from './utils/workspaceBridge';
 import { resolveAccessToken, isTokenUnavailable, clearCachedToken } from './utils/accessToken';
 import { isTidConfigured } from './api/client';
-import { getProjects, getCurrentUser, listProjectPdfs } from './api/trimbleApi';
+import { getProjects, getCurrentUser, getProjectEntries } from './api/trimbleApi';
 import { Logger } from './utils/logger';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from './appInfo';
 
@@ -39,13 +39,13 @@ function App() {
   const [projectsError, setProjectsError] = useState(null);
   const [selectedProjectId, setSelectedProjectId] = useState('');
 
-  const [pdfFiles, setPdfFiles] = useState([]);
+  const [projectItems, setProjectItems] = useState([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [filesError, setFilesError] = useState(null);
-  const [fileFilter, setFileFilter] = useState('');
 
   const [history, setHistory] = useState([]);
   const [currentSheet, setCurrentSheet] = useState(null);
+  const [explorerOpen, setExplorerOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingMatches, setPendingMatches] = useState(null);
   const [lookupLabel, setLookupLabel] = useState('');
@@ -136,20 +136,20 @@ function App() {
 
   const loadFiles = useCallback(async () => {
     if (!hasAccess || !projectId) {
-      setPdfFiles([]);
+      setProjectItems([]);
       return;
     }
     setIsLoadingFiles(true);
     setFilesError(null);
     try {
       const token = await getToken();
-      const files = await listProjectPdfs(token, region, projectId);
-      setPdfFiles(files);
+      const items = await getProjectEntries(token, region, projectId);
+      setProjectItems(items);
     } catch (error) {
-      Logger.error('Could not list project PDFs', error.message);
-      setPdfFiles([]);
+      Logger.error('Could not list project folders', error.message);
+      setProjectItems([]);
       setFilesError(error);
-      reportError(error, 'Project drawings could not be loaded.');
+      reportError(error, 'Project folders could not be loaded.');
     } finally {
       setIsLoadingFiles(false);
     }
@@ -171,7 +171,7 @@ function App() {
   );
 
   const openFile = useCallback(
-    async (file, { pushCurrent = false } = {}) => {
+    async (file, { pushCurrent = false, resetHistory = false } = {}) => {
       setLookupLabel(`Opening ${file.name}…`);
       try {
         const blob = await download(file);
@@ -184,9 +184,19 @@ function App() {
           objectUrl,
         };
         const previous = currentSheet;
-        if (pushCurrent && previous) setHistory((stack) => [...stack, previous]);
-        else revokeObjectUrl(previous?.objectUrl);
+        if (resetHistory) {
+          setHistory((stack) => {
+            stack.forEach((entry) => revokeObjectUrl(entry.objectUrl));
+            return [];
+          });
+          if (!pushCurrent) revokeObjectUrl(previous?.objectUrl);
+        } else if (pushCurrent && previous) {
+          setHistory((stack) => [...stack, previous]);
+        } else {
+          revokeObjectUrl(previous?.objectUrl);
+        }
         setCurrentSheet(nextSheet);
+        setExplorerOpen(false);
         setSettingsOpen(false);
       } catch (error) {
         reportError(error, `Could not open ${file.name}.`);
@@ -244,6 +254,7 @@ function App() {
     });
     history.forEach((entry) => revokeObjectUrl(entry.objectUrl));
     setHistory([]);
+    setExplorerOpen(true);
   }, [history]);
 
   const handleSignOut = useCallback(() => {
@@ -286,81 +297,81 @@ function App() {
     </header>
   );
 
-  let body = null;
-  if (settingsOpen) {
-    body = (
-      <main className="flex-grow-1 min-h-0 overflow-auto p-3 p-lg-4">
-        <div className="mx-auto settings-wrap">
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <h1 className="h4 mb-0">Settings</h1>
-            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setSettingsOpen(false)}>
-              Back to drawings
-            </button>
+  const showSettings = settingsOpen;
+  const showExplorer = !settingsOpen && (!currentSheet || explorerOpen);
+  const showViewer = Boolean(currentSheet) && !settingsOpen && !explorerOpen;
+  const showChrome = !showViewer;
+
+  return (
+    <div className="app-root d-flex flex-column">
+      {showChrome ? chrome : null}
+
+      {showSettings ? (
+        <main className="flex-grow-1 min-h-0 overflow-auto p-3 p-lg-4">
+          <div className="mx-auto settings-wrap">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h1 className="h4 mb-0">Settings</h1>
+              <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setSettingsOpen(false)}>
+                {currentSheet ? 'Back to drawing' : 'Back to files'}
+              </button>
+            </div>
+            <SettingsView
+              settings={settings}
+              updateSetting={updateSetting}
+              showToast={showToast}
+              projects={projects}
+              embeddedProject={embeddedProject}
+              selectedProjectId={projectId}
+              onProjectChange={(id) => {
+                setSelectedProjectId(id);
+                handleCloseSheet();
+              }}
+            />
           </div>
-          <SettingsView
-            settings={settings}
-            updateSetting={updateSetting}
-            showToast={showToast}
-            projects={projects}
-            embeddedProject={embeddedProject}
-            selectedProjectId={projectId}
-            onProjectChange={(id) => {
-              setSelectedProjectId(id);
-              handleCloseSheet();
-            }}
+        </main>
+      ) : null}
+
+      {currentSheet ? (
+        <div
+          className={showViewer ? 'd-flex flex-column flex-grow-1 min-h-0' : 'viewer-parked d-flex flex-column'}
+          aria-hidden={!showViewer}
+          inert={!showViewer ? true : undefined}
+        >
+          <PDFViewer
+            key={currentSheet.id}
+            source={source}
+            sourceKey={currentSheet.id}
+            title={currentSheet.name}
+            canGoBack={history.length > 0}
+            onBack={handleBack}
+            onBrowseFiles={() => setExplorerOpen(true)}
+            codeRegex={settings.codeRegex}
+            showPanel={settings.showHotspotPanel}
+            onTogglePanel={() => updateSetting('showHotspotPanel', !settings.showHotspotPanel)}
+            settingsOpen={settingsOpen}
+            onToggleSettings={() => setSettingsOpen((open) => !open)}
+            onHotspotClick={handleHotspot}
+            isBusy={isSearching || Boolean(lookupLabel)}
+            busyLabel={lookupLabel || 'Looking up drawing…'}
           />
         </div>
-      </main>
-    );
-  } else if (currentSheet) {
-    body = (
-      <PDFViewer
-        key={currentSheet.id}
-        source={source}
-        sourceKey={currentSheet.id}
-        title={currentSheet.name}
-        canGoBack={history.length > 0}
-        onBack={handleBack}
-        codeRegex={settings.codeRegex}
-        showPanel={settings.showHotspotPanel}
-        onTogglePanel={() => updateSetting('showHotspotPanel', !settings.showHotspotPanel)}
-        settingsOpen={settingsOpen}
-        onToggleSettings={() => setSettingsOpen((open) => !open)}
-        onHotspotClick={handleHotspot}
-        isBusy={isSearching || Boolean(lookupLabel)}
-        busyLabel={lookupLabel || 'Looking up drawing…'}
-        extraToolbar={
-          <div className="bg-body border-bottom px-3 py-1 small d-flex align-items-center gap-2">
-            <button type="button" className="btn btn-link btn-sm px-0" onClick={handleCloseSheet}>
-              Choose another drawing
-            </button>
-            {selectedProject?.name ? <span className="text-muted text-truncate">{selectedProject.name}</span> : null}
-          </div>
-        }
-      />
-    );
-  } else {
-    body = (
-      <main className="flex-grow-1 min-h-0 overflow-auto p-3 p-lg-4">
-        <div className="mx-auto picker-wrap">
-          <div className="d-flex justify-content-end mb-3">
-            <button
-              type="button"
-              className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1"
-              onClick={() => setSettingsOpen(true)}
-            >
-              <ModusIcon name="gear" size="16px" />
-              Settings
-            </button>
-          </div>
-          {isLoadingProjects ? (
+      ) : null}
+
+      {showExplorer && isLoadingProjects ? (
+        <main className="flex-grow-1 min-h-0 overflow-auto p-3 p-lg-4">
+          <div className="mx-auto picker-wrap">
             <div className="card border-0 shadow-sm">
               <div className="card-body">
                 <Spinner label="Loading projects…" />
               </div>
             </div>
-          ) : null}
-          {projectsError ? (
+          </div>
+        </main>
+      ) : null}
+
+      {showExplorer && projectsError ? (
+        <main className="flex-grow-1 min-h-0 overflow-auto p-3 p-lg-4">
+          <div className="mx-auto picker-wrap">
             <div className="card border-0 shadow-sm">
               <div className="card-body">
                 <EmptyState
@@ -375,28 +386,32 @@ function App() {
                 />
               </div>
             </div>
-          ) : null}
-          {!isLoadingProjects && !projectsError ? (
-            <FilePicker
+          </div>
+        </main>
+      ) : null}
+
+      {!isLoadingProjects && !projectsError ? (
+        <main
+          className={showExplorer ? 'flex-grow-1 min-h-0 overflow-auto p-3 p-lg-4' : 'd-none'}
+          aria-hidden={!showExplorer}
+          inert={!showExplorer ? true : undefined}
+        >
+          <div className="mx-auto picker-wrap">
+            <FileExplorer
+              key={projectId}
               projectName={selectedProject?.name}
-              files={pdfFiles}
+              items={projectItems}
               isLoading={isLoadingFiles}
               error={filesError}
               onRetry={loadFiles}
-              onSelect={(file) => openFile(file)}
-              filter={fileFilter}
-              onFilterChange={setFileFilter}
+              onSelectFile={(file) => openFile(file, { resetHistory: true })}
+              onOpenSettings={() => setSettingsOpen(true)}
+              canReturnToDrawing={Boolean(currentSheet)}
+              onReturnToDrawing={() => setExplorerOpen(false)}
             />
-          ) : null}
-        </div>
-      </main>
-    );
-  }
-
-  return (
-    <div className="app-root d-flex flex-column">
-      {currentSheet && !settingsOpen ? null : chrome}
-      {body}
+          </div>
+        </main>
+      ) : null}
       {pendingMatches ? (
         <MatchPicker
           code={pendingMatches.code}

@@ -9,12 +9,16 @@ It runs **embedded in Trimble Connect** (Workspace API token) and **standalone**
 
 ## What it does
 
-1. Open a PDF from the current Trimble Connect project.
-2. PDF.js renders the page and reads the text layer.
+1. Browse the project with the in-app file explorer (Modus breadcrumbs and folder
+   list). Plan Linker loads every folder and PDF from the Trimble Connect filesystem
+   snapshot (`GET /files/fs/snapshot`), including files in subfolders.
+2. Open a PDF from that tree. PDF.js renders the page and reads the text layer.
 3. Text that matches the configured drawing-code regex becomes a hotspot.
 4. Clicking a hotspot searches the project (`GET /search?query=…&projectId=…`), then
    fetches a temporary download URL (`GET /files/{fileId}/downloadurl`).
 5. The detail sheet opens and the previous sheet is pushed onto a back stack.
+   **Browse files** in the viewer toolbar returns to the explorer without unloading
+   the current drawing.
 
 Settings let you change the matching regex and a fallback folder name used when
 several files match the same code.
@@ -27,7 +31,7 @@ API 2.1 (with 2.0 fallbacks), and `trimble-connect-project-workspace-api`.
 ```
 src/
   api/           Trimble Connect REST wrappers (`trimbleApi.js`) and Trimble ID client
-  components/    Viewer/, Settings/, Auth/, Modus/
+  components/    FileExplorer/, Viewer/, Settings/, Auth/, Modus/
   hooks/         usePDF, useDrawingSearch, useSettings, useToast
   utils/         workspaceBridge, token resolution, drawing-code matching, logger
 ```

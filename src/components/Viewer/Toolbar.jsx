@@ -5,6 +5,7 @@ const Toolbar = ({
   title,
   canGoBack,
   onBack,
+  onBrowseFiles,
   pageNumber,
   pageCount,
   onPageChange,
@@ -27,6 +28,16 @@ const Toolbar = ({
     </div>
 
     <div className="d-flex align-items-center gap-1 flex-wrap justify-content-end">
+      <button
+        type="button"
+        className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
+        onClick={onBrowseFiles}
+      >
+        <ModusIcon name="folder-open" size="16px" />
+        <span className="d-none d-md-inline">Browse files</span>
+        <span className="d-md-none">Files</span>
+      </button>
+
       <button
         type="button"
         className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"

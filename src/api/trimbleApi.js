@@ -20,38 +20,56 @@ const asArray = (data) => {
   if (Array.isArray(data?.data)) return data.data;
   if (Array.isArray(data?.results)) return data.results;
   if (Array.isArray(data?.files)) return data.files;
+  if (Array.isArray(data?.contents)) return data.contents;
+  if (Array.isArray(data?.objects)) return data.objects;
+  if (Array.isArray(data?.entries)) return data.entries;
   return [];
-};
-
-const isPdfFile = (entry) => {
-  const name = String(entry?.name || '').toLowerCase();
-  const type = String(entry?.type || entry?.objectType || '').toUpperCase();
-  if (type && type !== 'FILE') return false;
-  return name.endsWith('.pdf');
 };
 
 const fileIdOf = (entry) => entry?.id || entry?.fileId || entry?.objectId || '';
 
+const typeOf = (entry) =>
+  String(entry?.type || entry?.tp || entry?.objectType || '').toUpperCase();
+
+const nameOf = (entry) =>
+  entry?.name || entry?.nm || entry?.fileName || entry?.filename || 'Untitled';
+
+const parentIdOf = (entry) =>
+  entry?.parentId || entry?.pid || entry?.parent?.id || '';
+
+const isPdfName = (name) => String(name || '').toLowerCase().endsWith('.pdf');
+
+export const isPdfFile = (entry) => {
+  const type = typeOf(entry);
+  if (type && type !== 'FILE') return false;
+  return isPdfName(nameOf(entry));
+};
+
+export const isFolderEntry = (entry) => typeOf(entry) === 'FOLDER';
+
 const pathTextOf = (entry) => {
   if (typeof entry?.path === 'string') return entry.path;
   if (Array.isArray(entry?.path)) {
-    return entry.path.map((part) => part?.name || part).join('/');
+    return entry.path.map((part) => part?.name || part?.nm || part).join('/');
   }
   return entry?.parentPath || '';
 };
 
-const normalizeFile = (entry) => ({
+/** Snapshot items use abbreviated keys (nm, tp, pid, vid, sz). Full APIs use long names. */
+export const normalizeEntry = (entry) => ({
   id: fileIdOf(entry),
-  name: entry?.name || 'Untitled',
-  type: entry?.type || entry?.objectType || 'FILE',
-  versionId: entry?.versionId || entry?.version?.id || '',
-  parentId: entry?.parentId || '',
+  name: nameOf(entry),
+  type: typeOf(entry) || (isPdfName(nameOf(entry)) ? 'FILE' : ''),
+  versionId: entry?.versionId || entry?.vid || entry?.version?.id || '',
+  parentId: parentIdOf(entry),
   projectId: entry?.projectId || '',
   path: pathTextOf(entry),
-  size: entry?.size || 0,
+  size: Number(entry?.size ?? entry?.sz ?? entry?.fileSize) || 0,
   modifiedOn: entry?.modifiedOn || entry?.updatedOn || '',
   raw: entry,
 });
+
+const normalizeFile = normalizeEntry;
 
 async function fetchJson(url, token) {
   const response = await fetch(url, { headers: authHeaders(token) });
@@ -61,8 +79,19 @@ async function fetchJson(url, token) {
     error.status = response.status;
     throw error;
   }
+  if (response.status === 204) return null;
   return response.json();
 }
+
+const nextPageUrl = (data, currentUrl) => {
+  if (data?.nextLink) return data.nextLink;
+  if (data?.nextPageLink) return data.nextPageLink;
+  const token = data?.skipToken || data?.continuationToken || data?.nextPageToken;
+  if (!token) return '';
+  const next = new URL(currentUrl, 'https://connect.trimble.com');
+  next.searchParams.set('skipToken', token);
+  return next.toString();
+};
 
 export const getCurrentUser = async (token) => {
   try {
@@ -93,19 +122,171 @@ export const getProjectDetails = async (token, regionName, projectId) => {
   return fetchJson(`${baseUrl}${API_V20}/projects/${projectId}?fullyLoaded=true`, token);
 };
 
-/**
- * Full filesystem snapshot used as a search fallback and for the PDF picker.
- */
-export const getProjectSnapshot = async (token, regionName, projectId) => {
-  const baseUrl = getBaseUrlForRegion(regionName);
-  const url = `${baseUrl}${API_V20}/files/fs/snapshot?projectId=${encodeURIComponent(projectId)}&objectTypes=FILE,FOLDER&maxItems=100000`;
-  const data = await fetchJson(url, token);
-  return asArray(data);
+const readRootId = (project) =>
+  project?.rootId || project?.rootFolderId || project?.root?.id || '';
+
+export const getProjectRootId = async (token, regionName, projectId, knownProject) => {
+  const fromKnown = readRootId(knownProject);
+  if (fromKnown) return fromKnown;
+  const details = await getProjectDetails(token, regionName, projectId);
+  const fromProject = readRootId(details);
+  if (fromProject) return fromProject;
+  throw new Error('This project has no root folder id (rootId).');
 };
 
-export const listProjectPdfs = async (token, regionName, projectId) => {
-  const snapshot = await getProjectSnapshot(token, regionName, projectId);
-  return snapshot.filter(isPdfFile).map(normalizeFile);
+/**
+ * Full filesystem snapshot used for the file explorer and PDF discovery.
+ * Trimble abbreviates item fields: nm, tp, pid, vid, sz.
+ */
+export const getProjectSnapshot = async (token, regionName, projectId, options = {}) => {
+  const baseUrl = getBaseUrlForRegion(regionName);
+  const params = new URLSearchParams({
+    projectId,
+    objectTypes: options.objectTypes || 'FILE,FOLDER',
+    maxItems: String(options.maxItems || 100000),
+  });
+  if (options.objectNames) params.set('objectNames', options.objectNames);
+
+  const collected = [];
+  let url = `${baseUrl}${API_V20}/files/fs/snapshot?${params.toString()}`;
+  let guard = 0;
+
+  while (url && guard < 20) {
+    const data = await fetchJson(url, token);
+    collected.push(...asArray(data));
+    url = nextPageUrl(data, url);
+    guard += 1;
+  }
+
+  Logger.info(`Loaded ${collected.length} filesystem item(s) from project ${projectId}.`);
+  return collected;
+};
+
+const withReconstructedPaths = (snapshot) => {
+  const entries = snapshot.map(normalizeEntry).filter((entry) => entry.id);
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+
+  return entries.map((entry) => {
+    if (entry.path) return entry;
+    const segments = [];
+    let cursor = byId.get(entry.parentId);
+    const seen = new Set();
+    while (cursor && !seen.has(cursor.id)) {
+      seen.add(cursor.id);
+      segments.unshift(cursor.name);
+      cursor = byId.get(cursor.parentId);
+    }
+    return { ...entry, path: segments.join('/') };
+  });
+};
+
+export const getProjectEntries = async (token, regionName, projectId) => {
+  let entries = [];
+  try {
+    entries = withReconstructedPaths(await getProjectSnapshot(token, regionName, projectId));
+  } catch (error) {
+    Logger.warn('Filesystem snapshot failed; walking folders from the project root.', error.message);
+  }
+
+  const pdfs = entries.filter((entry) => entry.type !== 'FOLDER' && isPdfName(entry.name));
+  if (pdfs.length > 0) return entries;
+
+  const walked = await walkFoldersForPdfs(token, regionName, projectId);
+  if (entries.length === 0) return walked;
+
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  walked.forEach((entry) => {
+    if (!byId.has(entry.id)) entries.push(entry);
+  });
+  return entries;
+};
+
+/**
+ * Every PDF in the project, including files nested in subfolders.
+ */
+export const getProjectPdfFiles = async (token, regionName, projectId) => {
+  const pdfs = (await getProjectEntries(token, regionName, projectId)).filter(
+    (entry) => entry.type !== 'FOLDER' && isPdfName(entry.name),
+  );
+  if (pdfs.length > 0) return pdfs;
+
+  try {
+    const pdfSnapshot = await getProjectSnapshot(token, regionName, projectId, {
+      objectTypes: 'FILE',
+      objectNames: '.pdf',
+    });
+    return withReconstructedPaths(pdfSnapshot).filter((entry) => isPdfName(entry.name));
+  } catch (error) {
+    Logger.warn('PDF snapshot filter failed.', error.message);
+    return [];
+  }
+};
+
+export const listProjectPdfs = getProjectPdfFiles;
+
+const walkFoldersForPdfs = async (token, regionName, projectId) => {
+  const rootId = await getProjectRootId(token, regionName, projectId);
+  const found = [];
+  const queue = [rootId];
+  const seen = new Set();
+
+  while (queue.length > 0) {
+    const folderId = queue.shift();
+    if (!folderId || seen.has(folderId)) continue;
+    seen.add(folderId);
+
+    let children = [];
+    try {
+      children = await getFolderContents(token, regionName, projectId, folderId);
+    } catch (error) {
+      Logger.warn(`Could not list folder ${folderId}: ${error.message}`);
+      continue;
+    }
+
+    children.forEach((entry) => {
+      if (entry.type === 'FOLDER') queue.push(entry.id);
+      else if (isPdfName(entry.name)) found.push(entry);
+    });
+  }
+
+  return found;
+};
+
+/**
+ * Children of a folder. Falls back to the project root when folderId is omitted.
+ */
+export const getFolderContents = async (token, regionName, projectId, folderId) => {
+  const baseUrl = getBaseUrlForRegion(regionName);
+  const id = folderId || (await getProjectRootId(token, regionName, projectId));
+  const encoded = encodeURIComponent(id);
+
+  const urls = [
+    `${baseUrl}${API_V21}/folders/${encoded}/items`,
+    `${baseUrl}${API_V21}/projects/${encodeURIComponent(projectId)}/folders/${encoded}/items`,
+    `${baseUrl}${API_V20}/folders/${encoded}/items`,
+    `${baseUrl}${API_V20}/files?parentId=${encoded}`,
+  ];
+
+  let lastError = null;
+  for (const url of urls) {
+    try {
+      const data = await fetchJson(url, token);
+      return asArray(data).map(normalizeEntry).filter((entry) => entry.id);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  try {
+    const snapshot = withReconstructedPaths(await getProjectSnapshot(token, regionName, projectId));
+    const fromSnapshot = snapshot.filter((entry) => entry.parentId === id);
+    if (fromSnapshot.length > 0) return fromSnapshot;
+  } catch (error) {
+    Logger.warn(`Could not fall back to the filesystem snapshot for folder ${id}.`, error.message);
+  }
+
+  if (lastError) throw lastError;
+  return [];
 };
 
 const searchViaEndpoint = async (token, regionName, projectId, query) => {
@@ -168,11 +349,11 @@ export const searchProjectFiles = async (token, regionName, projectId, query, fa
   }
 
   if (results.length === 0) {
-    const snapshot = await getProjectSnapshot(token, regionName, projectId);
-    results = snapshot.map(normalizeFile).filter((file) => file.id && matchesQuery(file, needle));
+    const entries = await getProjectEntries(token, regionName, projectId);
+    results = entries.filter((file) => file.type !== 'FOLDER' && matchesQuery(file, needle));
   }
 
-  const pdfs = results.filter((file) => isPdfFile(file) || String(file.name).toLowerCase().includes(needle.toLowerCase()));
+  const pdfs = results.filter((file) => isPdfName(file.name) || String(file.name).toLowerCase().includes(needle.toLowerCase()));
   const preferred = pdfs.filter((file) => inFallbackFolder(file, fallbackFolder));
   const ranked = (preferred.length ? preferred : pdfs).sort((a, b) => {
     const aExact = String(a.name).toLowerCase().startsWith(needle.toLowerCase()) ? 0 : 1;

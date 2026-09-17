@@ -57,6 +57,23 @@ i[class*=' modus-icon-'] {
   overflow: auto;
 }
 
+.viewer-parked {
+  position: fixed;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.file-filter {
+  max-width: 16rem;
+}
+
+.file-list {
+  max-height: min(70vh, 40rem);
+  overflow: auto;
+}
+
 .viewer-shell {
   min-height: 0;
 }

@@ -16,6 +16,7 @@ const PDFViewer = ({
   title,
   canGoBack,
   onBack,
+  onBrowseFiles,
   codeRegex,
   showPanel,
   onTogglePanel,
@@ -86,6 +87,7 @@ const PDFViewer = ({
         title={title}
         canGoBack={canGoBack}
         onBack={onBack}
+        onBrowseFiles={onBrowseFiles}
         pageNumber={pageNumber}
         pageCount={pageCount}
         onPageChange={handlePageChange}
