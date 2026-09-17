@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import SectionCard from '../Modus/SectionCard';
 import { REGIONS } from '../../api/config';
-import { DEFAULT_CODE_REGEX } from '../../utils/drawingCodes';
+import { DEFAULT_CODE_REGEX, normalizeRegexSource } from '../../utils/drawingCodes';
 import { Logger } from '../../utils/logger';
 import { APP_NAME, APP_VERSION } from '../../appInfo';
 
@@ -18,8 +18,9 @@ const SettingsView = ({
 
   const handleSaveRegex = () => {
     try {
-      new RegExp(regexDraft, 'gi');
-      updateSetting('codeRegex', regexDraft.trim() || DEFAULT_CODE_REGEX);
+      const pattern = normalizeRegexSource(regexDraft);
+      new RegExp(pattern, 'gi');
+      updateSetting('codeRegex', pattern);
       showToast('Drawing code pattern saved.', 'success');
     } catch {
       showToast('That regular expression is not valid.', 'danger');
@@ -102,7 +103,8 @@ const SettingsView = ({
             spellCheck={false}
           />
           <div className="form-text">
-            Default matches DET-01, DETAIL-12, and D-3. Use a capturing-free pattern; matching is case-insensitive.
+            Default matches DET-01, DETAIL-12, ST-102, and D-3, with optional space or dot separators.
+            Matching is case-insensitive. You can paste `/pattern/gi`; the slashes are stripped.
           </div>
         </div>
         <div className="d-flex gap-2">

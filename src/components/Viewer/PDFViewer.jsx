@@ -33,6 +33,7 @@ const PDFViewer = ({
   const [scale, setScale] = useState(1);
   const [fitWidth, setFitWidth] = useState(true);
   const [hotspots, setHotspots] = useState([]);
+  const [scan, setScan] = useState(null);
   const [baseWidth, setBaseWidth] = useState(0);
 
   useEffect(() => {
@@ -56,17 +57,23 @@ const PDFViewer = ({
     if (!node) return undefined;
 
     const apply = (width) => {
+      if (!width) return;
       const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, (width - 32) / baseWidth));
-      setScale(Number(next.toFixed(3)));
+      const rounded = Number(next.toFixed(3));
+      setScale((current) => (current === rounded ? current : rounded));
     };
 
     apply(node.clientWidth);
+    let frame = 0;
     const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect?.width;
-      if (width) apply(width);
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => apply(entries[0]?.contentRect?.width));
     });
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, [fitWidth, baseWidth, sourceKey]);
 
   const handlePageChange = (value) => {
@@ -75,8 +82,9 @@ const PDFViewer = ({
     setPageNumber(next);
   };
 
-  const handleHotspots = useCallback((spots) => {
+  const handleHotspots = useCallback((spots, meta) => {
     setHotspots(spots);
+    if (meta) setScan(meta);
   }, []);
 
   const scaleLabel = useMemo(() => `${Math.round(scale * 100)}%`, [scale]);
@@ -111,7 +119,7 @@ const PDFViewer = ({
 
       <div className="d-flex flex-grow-1 min-h-0">
         {showPanel ? (
-          <HotspotPanel hotspots={hotspots} onSelect={onHotspotClick} disabled={isBusy} />
+          <HotspotPanel hotspots={hotspots} scan={scan} onSelect={onHotspotClick} disabled={isBusy} />
         ) : null}
 
         <div className="flex-grow-1 min-w-0 min-h-0 viewer-stage" ref={stageRef}>

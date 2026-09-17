@@ -3,6 +3,8 @@ import { DEFAULT_CODE_REGEX } from '../utils/drawingCodes';
 
 const STORAGE_KEY = 'sheethop_settings';
 
+const LEGACY_DEFAULTS = [String.raw`(?:DET(?:AIL)?|D)-\d+`];
+
 const DEFAULTS = {
   region: 'europe',
   codeRegex: DEFAULT_CODE_REGEX,
@@ -13,7 +15,11 @@ const DEFAULTS = {
 const read = () => {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    return { ...DEFAULTS, ...stored };
+    const next = { ...DEFAULTS, ...stored };
+    if (!next.codeRegex || LEGACY_DEFAULTS.includes(next.codeRegex)) {
+      next.codeRegex = DEFAULT_CODE_REGEX;
+    }
+    return next;
   } catch {
     return { ...DEFAULTS };
   }

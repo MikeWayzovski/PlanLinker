@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { findHotspots } from '../../utils/drawingCodes';
+import { scanPageCodes } from '../../utils/drawingCodes';
 import { Logger } from '../../utils/logger';
 import HotspotOverlay from './HotspotOverlay';
 import Spinner from '../Modus/Spinner';
+
+const emptyMeta = { itemCount: 0, lineCount: 0, sample: '' };
 
 const CanvasPage = ({
   pdf,
@@ -17,6 +19,31 @@ const CanvasPage = ({
   const canvasRef = useRef(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [pageHotspots, setPageHotspots] = useState([]);
+  const [textScan, setTextScan] = useState(null);
+
+  useEffect(() => {
+    if (!pdf) return undefined;
+
+    let cancelled = false;
+
+    const loadText = async () => {
+      try {
+        const page = await pdf.getPage(pageNumber);
+        if (cancelled) return;
+        const content = await page.getTextContent({ disableNormalization: false });
+        if (cancelled) return;
+        setTextScan({ pageNumber, content });
+      } catch (error) {
+        Logger.error('Could not read PDF text', error.message);
+        if (!cancelled) setTextScan({ pageNumber, content: { items: [] } });
+      }
+    };
+
+    loadText();
+    return () => {
+      cancelled = true;
+    };
+  }, [pdf, pageNumber]);
 
   useEffect(() => {
     if (!pdf) return undefined;
@@ -44,14 +71,6 @@ const CanvasPage = ({
         const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
         renderTask = page.render({ canvasContext: context, canvas, viewport, transform });
         await renderTask.promise;
-        if (cancelled) return;
-
-        const textContent = await page.getTextContent();
-        if (cancelled) return;
-
-        const spots = findHotspots(textContent, viewport, codeRegex, pageNumber);
-        setPageHotspots(spots);
-        onHotspots(spots);
       } catch (error) {
         if (error?.name === 'RenderingCancelledException') return;
         Logger.error('Could not render the PDF page', error.message);
@@ -64,7 +83,40 @@ const CanvasPage = ({
       cancelled = true;
       if (renderTask) renderTask.cancel();
     };
-  }, [pdf, pageNumber, scale, codeRegex, onHotspots]);
+  }, [pdf, pageNumber, scale]);
+
+  useEffect(() => {
+    if (!pdf || !textScan || textScan.pageNumber !== pageNumber) return undefined;
+
+    let cancelled = false;
+
+    const detect = async () => {
+      try {
+        const page = await pdf.getPage(pageNumber);
+        if (cancelled) return;
+        const viewport = page.getViewport({ scale });
+        const { hotspots, meta } = scanPageCodes(textScan.content, viewport, codeRegex, pageNumber);
+        if (cancelled) return;
+        setPageHotspots(hotspots);
+        onHotspots(hotspots, meta);
+        Logger.info(
+          `Page ${pageNumber}: ${meta.itemCount} text item(s), ${meta.lineCount} line(s), ${hotspots.length} hotspot(s).`,
+          meta.sample,
+        );
+      } catch (error) {
+        Logger.error('Could not detect drawing codes', error.message);
+        if (!cancelled) {
+          setPageHotspots([]);
+          onHotspots([], emptyMeta);
+        }
+      }
+    };
+
+    detect();
+    return () => {
+      cancelled = true;
+    };
+  }, [pdf, pageNumber, scale, codeRegex, textScan, onHotspots]);
 
   return (
     <div className="canvas-stage">

@@ -1,18 +1,30 @@
 import React from 'react';
 import EmptyState from '../Modus/EmptyState';
 
-const HotspotPanel = ({ hotspots, onSelect, disabled }) => (
+const HotspotPanel = ({ hotspots, scan, onSelect, disabled }) => {
+  const itemCount = scan?.itemCount;
+  const noText = itemCount === 0;
+  const emptyTitle = noText ? 'No selectable text on this page' : 'No codes on this page';
+  const emptyBody = noText
+    ? 'This PDF has no text layer. CAD exports often draw letters as outlines, so Plan Linker cannot detect codes.'
+    : scan?.sample
+      ? `The matching pattern did not hit extracted text. Sample: “${scan.sample}”. Change the pattern in Settings.`
+      : 'Adjust the matching pattern in Settings if detail marks use a different format.';
+
+  return (
   <aside className="hotspot-panel bg-body border-end flex-shrink-0" aria-label="Detected hotspots">
     <div className="px-3 py-2 border-bottom">
       <h2 className="h6 mb-0">Hotspots</h2>
-      <p className="small text-muted mb-0">Codes found on this page</p>
+      <p className="small text-muted mb-0">
+        {typeof itemCount === 'number' ? `${itemCount} text fragment${itemCount === 1 ? '' : 's'} scanned` : 'Codes found on this page'}
+      </p>
     </div>
     <div className="hotspot-panel-list">
       {hotspots.length === 0 ? (
         <EmptyState
           icon="magnifying-glass"
-          title="No codes on this page"
-          body="Adjust the matching regex in settings if detail marks use a different pattern."
+          title={emptyTitle}
+          body={emptyBody}
         />
       ) : (
         <ul className="list-group list-group-flush">
@@ -32,6 +44,7 @@ const HotspotPanel = ({ hotspots, onSelect, disabled }) => (
       )}
     </div>
   </aside>
-);
+  );
+};
 
 export default HotspotPanel;
