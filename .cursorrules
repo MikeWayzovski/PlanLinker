@@ -1,0 +1,58 @@
+# Feature & Version Update Prompt: 8-Language i18n Expansion (Direct on main)
+
+## Objective
+Update SitePass directly on the current `main` branch, bump the project version to `v1.3.0`, and expand the internationalization (i18n) setup to support 8 European languages commonly used in the AECO industry:
+1. English (`en`)
+2. Dutch (`nl`)
+3. Czech (`cs`)
+4. German (`de`)
+5. Spanish (`es`)
+6. French (`fr`)
+7. Hungarian (`hu`)
+8. Polish (`pl`)
+
+---
+
+## Step 1: Versioning
+1. Stay on the `main` branch.
+2. Increment the project version in `package.json` to `1.3.0`.
+3. Update `src/appInfo.js` (or equivalent version file) to reflect version `1.3.0`.
+
+---
+
+## Step 2: i18n Dictionaries
+In `src/i18n/`:
+1. Inspect the existing `en.js` and `nl.js` translation files to identify all translation keys.
+2. Create the new translation files with accurate translations for the SitePass UI context (AECO / Trimble Connect terms like Project, Group, Onboard, Replace, Crew, Role, Admin, etc.):
+   - `cs.js` (Czech)
+   - `de.js` (German)
+   - `es.js` (Spanish)
+   - `fr.js` (French)
+   - `hu.js` (Hungarian)
+   - `pl.js` (Polish)
+3. Update `src/i18n/index.js` (or `provider.jsx` / `i18n.js`) to register all 8 languages, including their native display names.
+
+# Cursor Rules for SheetHop (Trimble Connect 2D PDF Viewer Extension)
+
+## Project Context & Architecture
+- **Project Name:** PlanLinker
+- **Purpose:** Interactive 2D PDF viewer embedded in Trimble Connect that dynamically links overview drawings to detail drawings using text/code lookup via Trimble Connect REST APIs.
+- **Tech Stack:** React 18, Vite, `pdfjs-dist` (PDF.js), Trimble Modus UI (Bootstrap).
+- **Integration:** Trimble Connect Workspace API (iframe token) + Trimble Connect Core REST API v2.1.
+
+## Coding Standards & Best Practices
+
+### 1. PDF Rendering & Hotspots
+- Use `pdfjs-dist` to render PDF pages onto HTML5 Canvas or SVG text layers.
+- Extract text content layer coordinates to make drawing codes (e.g. `DET-01`, `ST-102`) clickable hotspots.
+- Maintain a navigation history stack (bread-crumbs) to support "Back to Overview Sheet" functionality.
+
+### 2. Trimble Connect API
+- Query file details dynamically using Trimble Connect REST API endpoints:
+  - `GET /search?query={drawingCode}` to search for matching detail files [1].
+  - `GET /files/{fileId}/downloadurl` to get temporary pre-signed PDF URLs [2].
+- Reuse the dual-token bridge pattern from `SitePass` / `tc-project-cross-over` for seamless authentication inside Trimble Connect iframes.
+
+### 3. UI & Modus Guidelines
+- Use Trimble Modus UI components for native look-and-feel inside Trimble Connect.
+- Provide clear visual indicators when searching or loading detail PDFs.

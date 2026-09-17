@@ -1,0 +1,8 @@
+{
+  "title": "SheetHop",
+  "description": "Navigate from overview drawings to detail sheets with clickable PDF hotspots.",
+  "icon": "https://planlinker.vercel.app/sheethop-logo.svg",
+  "url": "https://planlinker.vercel.app/",
+  "configCommand": "open_settings",
+  "enabled": true
+}

@@ -1,0 +1,172 @@
+html,
+body,
+#root,
+.app-root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  min-height: 100%;
+}
+
+.app-root {
+  min-height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  background-color: var(--bs-secondary-bg);
+}
+
+.min-h-0 {
+  min-height: 0;
+}
+
+.min-w-0 {
+  min-width: 0;
+}
+
+i[class^='modus-icon-'],
+i[class*=' modus-icon-'] {
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.login-card {
+  max-width: 28rem;
+  width: 100%;
+}
+
+.user-menu-name {
+  max-width: 10rem;
+}
+
+.user-menu-panel {
+  min-width: 16rem;
+  z-index: 1050;
+}
+
+.picker-wrap,
+.settings-wrap {
+  max-width: 80rem;
+}
+
+.file-filter {
+  max-width: 16rem;
+}
+
+.file-list {
+  max-height: min(70vh, 40rem);
+  overflow: auto;
+}
+
+.viewer-shell {
+  min-height: 0;
+}
+
+.viewer-toolbar {
+  gap: 0.5rem;
+}
+
+.toolbar-page-input {
+  width: 4.5rem;
+}
+
+.toolbar-scale-label {
+  min-width: 3rem;
+  text-align: center;
+}
+
+.hotspot-panel {
+  width: 16rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.hotspot-panel-list {
+  overflow: auto;
+  min-height: 0;
+}
+
+.viewer-stage {
+  overflow: auto;
+  background-color: var(--bs-secondary-bg);
+}
+
+.canvas-stage {
+  min-height: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.canvas-sheet {
+  position: relative;
+  box-shadow: var(--bs-box-shadow-sm);
+  background: #fff;
+}
+
+.pdf-canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.hotspot-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hotspot {
+  position: absolute;
+  pointer-events: auto;
+  border: 2px solid rgba(0, 99, 163, 0.85);
+  background: rgba(0, 99, 163, 0.12);
+  border-radius: 2px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.hotspot:hover,
+.hotspot:focus-visible {
+  background: rgba(0, 99, 163, 0.28);
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 1px;
+}
+
+.canvas-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.match-picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1080;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.match-picker-dialog {
+  width: min(32rem, 100%);
+  max-height: 80vh;
+  overflow: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
