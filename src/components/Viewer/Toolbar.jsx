@@ -12,7 +12,9 @@ const Toolbar = ({
   scaleLabel,
   onZoomIn,
   onZoomOut,
+  fitMode,
   onFitWidth,
+  onFitPage,
   hotspotCount,
   panelOpen,
   onTogglePanel,
@@ -92,11 +94,21 @@ const Toolbar = ({
       </button>
       <button
         type="button"
-        className="btn btn-sm btn-outline-secondary"
+        className={`btn btn-sm ${fitMode === 'width' ? 'btn-primary' : 'btn-outline-secondary'}`}
         onClick={onFitWidth}
         disabled={!pageCount}
+        aria-pressed={fitMode === 'width'}
       >
-        Fit to width
+        Fit width
+      </button>
+      <button
+        type="button"
+        className={`btn btn-sm ${fitMode === 'page' ? 'btn-primary' : 'btn-outline-secondary'}`}
+        onClick={onFitPage}
+        disabled={!pageCount}
+        aria-pressed={fitMode === 'page'}
+      >
+        Fit page
       </button>
 
       <button

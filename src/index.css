@@ -4,12 +4,15 @@ body,
 .app-root {
   margin: 0;
   padding: 0;
+  width: 100%;
   height: 100%;
   min-height: 100%;
+  overflow: hidden;
 }
 
 .app-root {
-  min-height: 100dvh;
+  width: 100%;
+  height: 100dvh;
   max-height: 100dvh;
   overflow: hidden;
   background-color: var(--bs-secondary-bg);
@@ -65,17 +68,26 @@ i[class*=' modus-icon-'] {
   z-index: -1;
 }
 
-.file-filter {
-  max-width: 16rem;
-}
-
-.file-list {
-  max-height: min(70vh, 40rem);
-  overflow: auto;
+.viewer-host {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .viewer-shell {
+  width: 100%;
+  height: 100%;
   min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.viewer-body {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .viewer-toolbar {
@@ -96,6 +108,8 @@ i[class*=' modus-icon-'] {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  height: 100%;
+  align-self: stretch;
 }
 
 .hotspot-panel-list {
@@ -104,27 +118,36 @@ i[class*=' modus-icon-'] {
 }
 
 .viewer-stage {
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
   overflow: auto;
+  position: relative;
   background-color: var(--bs-secondary-bg);
+  touch-action: pan-x pan-y;
+  overscroll-behavior: contain;
 }
 
 .canvas-stage {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 100%;
   min-height: 100%;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
   padding: 1rem;
 }
 
 .canvas-sheet {
   position: relative;
+  flex: 0 0 auto;
   box-shadow: var(--bs-box-shadow-sm);
   background: #fff;
 }
 
 .pdf-canvas {
   display: block;
-  max-width: 100%;
-  height: auto;
 }
 
 .hotspot-overlay {

@@ -79,7 +79,20 @@ function App() {
   useEffect(() => {
     const openSettings = () => setSettingsOpen(true);
     window.addEventListener(SETTINGS_EVENT, openSettings);
-    return () => window.removeEventListener(SETTINGS_EVENT, openSettings);
+
+    const blockBrowserZoom = (event) => {
+      if (event.ctrlKey || event.metaKey) event.preventDefault();
+    };
+    window.addEventListener('wheel', blockBrowserZoom, { passive: false, capture: true });
+    window.addEventListener('gesturestart', blockBrowserZoom, { passive: false, capture: true });
+    window.addEventListener('gesturechange', blockBrowserZoom, { passive: false, capture: true });
+
+    return () => {
+      window.removeEventListener(SETTINGS_EVENT, openSettings);
+      window.removeEventListener('wheel', blockBrowserZoom, { capture: true });
+      window.removeEventListener('gesturestart', blockBrowserZoom, { capture: true });
+      window.removeEventListener('gesturechange', blockBrowserZoom, { capture: true });
+    };
   }, []);
 
   const reportError = useCallback(
@@ -333,7 +346,7 @@ function App() {
 
       {currentSheet ? (
         <div
-          className={showViewer ? 'd-flex flex-column flex-grow-1 min-h-0' : 'viewer-parked d-flex flex-column'}
+          className={showViewer ? 'viewer-host d-flex flex-column flex-grow-1 min-h-0' : 'viewer-parked d-flex flex-column'}
           aria-hidden={!showViewer}
           inert={!showViewer ? true : undefined}
         >
