@@ -6,7 +6,6 @@ const STORAGE_KEY = 'sheethop_settings';
 const LEGACY_DEFAULTS = [String.raw`(?:DET(?:AIL)?|D)-\d+`];
 
 const DEFAULTS = {
-  region: 'europe',
   codeRegex: DEFAULT_CODE_REGEX,
   fallbackFolder: '',
   showHotspotPanel: true,

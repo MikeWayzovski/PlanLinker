@@ -36,6 +36,38 @@ export const normalizeRegion = (regionName) => {
   return ALIASES[key] || 'northAmerica';
 };
 
+export const inferRegionFromHost = (hostname) => {
+  const host = String(hostname || '').toLowerCase();
+  if (host.includes('app21')) return 'europe';
+  if (host.includes('app22')) return 'unitedKingdom';
+  if (host.includes('app31')) return 'asiaPacific';
+  if (host.includes('app32')) return 'australia';
+  return 'northAmerica';
+};
+
+/**
+ * Resolve the Connect API region from the Workspace current project, not a user picker.
+ */
+export const regionFromProject = (project) => {
+  const loc = project?.location || project?.region || '';
+  if (typeof loc === 'string' && /^https?:\/\//i.test(loc)) {
+    try {
+      return inferRegionFromHost(new URL(loc).hostname);
+    } catch {
+      /* fall through */
+    }
+  }
+  if (loc) return normalizeRegion(loc);
+  if (typeof document !== 'undefined' && document.referrer) {
+    try {
+      return inferRegionFromHost(new URL(document.referrer).hostname);
+    } catch {
+      /* fall through */
+    }
+  }
+  return 'northAmerica';
+};
+
 export const getBaseUrlForRegion = (regionName) => {
   const id = normalizeRegion(regionName);
   return REGIONS.find((region) => region.id === id).baseUrl;

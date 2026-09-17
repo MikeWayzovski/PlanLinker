@@ -104,19 +104,6 @@ export const getCurrentUser = async (token) => {
   }
 };
 
-export const getProjects = async (token, regionName) => {
-  const baseUrl = getBaseUrlForRegion(regionName);
-  try {
-    const data = await fetchJson(`${baseUrl}${API_V20}/projects`, token);
-    const projects = asArray(data);
-    Logger.info(`Loaded ${projects.length} projects from ${regionName}.`);
-    return projects;
-  } catch (error) {
-    Logger.error(`Could not load projects from ${regionName}`, error.message);
-    throw new Error(`Projects could not be loaded (${error.message}).`);
-  }
-};
-
 export const getProjectDetails = async (token, regionName, projectId) => {
   const baseUrl = getBaseUrlForRegion(regionName);
   return fetchJson(`${baseUrl}${API_V20}/projects/${projectId}?fullyLoaded=true`, token);

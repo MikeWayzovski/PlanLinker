@@ -1,11 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@trimble-oss/trimble-id-react';
 
 import LoginScreen from './components/Auth/LoginScreen';
 import UserMenu from './components/Auth/UserMenu';
 import ToastHost from './components/Modus/ToastHost';
-import Spinner from './components/Modus/Spinner';
-import EmptyState from './components/Modus/EmptyState';
 import ModusIcon from './components/Modus/ModusIcon';
 import PDFViewer from './components/Viewer/PDFViewer';
 import FileExplorer from './components/FileExplorer/FileExplorer';
@@ -15,10 +13,11 @@ import SettingsView from './components/Settings/SettingsView';
 import { useToast } from './hooks/useToast';
 import { useSettings } from './hooks/useSettings';
 import { useDrawingSearch } from './hooks/useDrawingSearch';
-import { useWorkspaceApi, SETTINGS_EVENT } from './utils/workspaceBridge';
+import { useWorkspaceApi, SETTINGS_EVENT, EXPLORER_EVENT, REFRESH_FILES_EVENT } from './utils/workspaceBridge';
 import { resolveAccessToken, isTokenUnavailable, clearCachedToken } from './utils/accessToken';
 import { isTidConfigured } from './api/client';
-import { getProjects, getCurrentUser, getProjectEntries } from './api/trimbleApi';
+import { getCurrentUser, getProjectEntries } from './api/trimbleApi';
+import { regionFromProject } from './api/config';
 import { Logger } from './utils/logger';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from './appInfo';
 
@@ -34,10 +33,6 @@ function App() {
   const { toasts, showToast, dismissToast } = useToast();
 
   const [currentUser, setCurrentUser] = useState(null);
-  const [projects, setProjects] = useState([]);
-  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
-  const [projectsError, setProjectsError] = useState(null);
-  const [selectedProjectId, setSelectedProjectId] = useState('');
 
   const [projectItems, setProjectItems] = useState([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
@@ -51,11 +46,10 @@ function App() {
   const [lookupLabel, setLookupLabel] = useState('');
 
   const hasAccess = isAuthenticated || (isEmbedded && Boolean(embeddedToken));
-  const region = settings.region;
-  const projectId = embeddedProject?.id || selectedProjectId || projects[0]?.id || '';
-  const selectedProject =
-    (embeddedProject?.id === projectId ? embeddedProject : null) ||
-    projects.find((project) => project.id === projectId);
+  const currentProject = embeddedProject;
+  const projectId = currentProject?.id || '';
+  const region = regionFromProject(currentProject);
+  const explorerVisibleRef = useRef(false);
 
   const getToken = useCallback(
     () =>
@@ -106,30 +100,6 @@ function App() {
     [showToast],
   );
 
-  const loadProjects = useCallback(async () => {
-    if (!hasAccess) return;
-    setIsLoadingProjects(true);
-    setProjectsError(null);
-    try {
-      const token = await getToken();
-      const loaded = await getProjects(token, region);
-      setProjects(loaded);
-    } catch (error) {
-      Logger.error('Could not load projects', error.message);
-      setProjects([]);
-      setProjectsError(error);
-      reportError(error, 'Projects could not be loaded.');
-    } finally {
-      setIsLoadingProjects(false);
-    }
-  }, [hasAccess, getToken, region, reportError]);
-
-  useEffect(() => {
-    // Fetch-on-dependency-change: the loading flag has to flip before the request starts.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadProjects();
-  }, [loadProjects]);
-
   useEffect(() => {
     if (!hasAccess) return undefined;
     let cancelled = false;
@@ -170,6 +140,28 @@ function App() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadFiles();
+  }, [loadFiles]);
+
+  useEffect(() => {
+    const refreshIfExplorer = () => {
+      if (explorerVisibleRef.current) loadFiles();
+    };
+    const openExplorer = () => {
+      setSettingsOpen(false);
+      setExplorerOpen(true);
+      loadFiles();
+    };
+    window.addEventListener(REFRESH_FILES_EVENT, refreshIfExplorer);
+    window.addEventListener(EXPLORER_EVENT, openExplorer);
+    return () => {
+      window.removeEventListener(REFRESH_FILES_EVENT, refreshIfExplorer);
+      window.removeEventListener(EXPLORER_EVENT, openExplorer);
+    };
+  }, [loadFiles]);
+
+  const handleBrowseFiles = useCallback(() => {
+    setExplorerOpen(true);
     loadFiles();
   }, [loadFiles]);
 
@@ -223,7 +215,7 @@ function App() {
   const handleHotspot = useCallback(
     async (spot) => {
       if (!projectId) {
-        showToast('Select a project before looking up drawings.', 'warning');
+        showToast('Open a drawing from the active Trimble Connect project first.', 'warning');
         return;
       }
       setLookupLabel(`Searching for ${spot.code}…`);
@@ -260,16 +252,6 @@ function App() {
     });
   }, []);
 
-  const handleCloseSheet = useCallback(() => {
-    setCurrentSheet((current) => {
-      revokeObjectUrl(current?.objectUrl);
-      return null;
-    });
-    history.forEach((entry) => revokeObjectUrl(entry.objectUrl));
-    setHistory([]);
-    setExplorerOpen(true);
-  }, [history]);
-
   const handleSignOut = useCallback(() => {
     clearCachedToken();
     if (typeof logout === 'function') logout();
@@ -279,6 +261,15 @@ function App() {
     () => (currentSheet?.objectUrl ? { url: currentSheet.objectUrl } : null),
     [currentSheet],
   );
+
+  const showSettings = settingsOpen;
+  const showExplorer = !settingsOpen && (!currentSheet || explorerOpen);
+  const showViewer = Boolean(currentSheet) && !settingsOpen && !explorerOpen;
+  const showChrome = !showViewer;
+
+  useEffect(() => {
+    explorerVisibleRef.current = showExplorer;
+  }, [showExplorer]);
 
   const callbackPath = window.location.pathname.replace(/\/$/, '') || '/';
   const isAuthCallback =
@@ -310,11 +301,6 @@ function App() {
     </header>
   );
 
-  const showSettings = settingsOpen;
-  const showExplorer = !settingsOpen && (!currentSheet || explorerOpen);
-  const showViewer = Boolean(currentSheet) && !settingsOpen && !explorerOpen;
-  const showChrome = !showViewer;
-
   return (
     <div className="app-root d-flex flex-column">
       {showChrome ? chrome : null}
@@ -332,13 +318,7 @@ function App() {
               settings={settings}
               updateSetting={updateSetting}
               showToast={showToast}
-              projects={projects}
-              embeddedProject={embeddedProject}
-              selectedProjectId={projectId}
-              onProjectChange={(id) => {
-                setSelectedProjectId(id);
-                handleCloseSheet();
-              }}
+              currentProject={currentProject}
             />
           </div>
         </main>
@@ -357,7 +337,7 @@ function App() {
             title={currentSheet.name}
             canGoBack={history.length > 0}
             onBack={handleBack}
-            onBrowseFiles={() => setExplorerOpen(true)}
+            onBrowseFiles={handleBrowseFiles}
             codeRegex={settings.codeRegex}
             showPanel={settings.showHotspotPanel}
             onTogglePanel={() => updateSetting('showHotspotPanel', !settings.showHotspotPanel)}
@@ -370,61 +350,27 @@ function App() {
         </div>
       ) : null}
 
-      {showExplorer && isLoadingProjects ? (
-        <main className="flex-grow-1 min-h-0 overflow-auto p-3 p-lg-4">
-          <div className="mx-auto picker-wrap">
-            <div className="card border-0 shadow-sm">
-              <div className="card-body">
-                <Spinner label="Loading projects…" />
-              </div>
-            </div>
-          </div>
-        </main>
-      ) : null}
-
-      {showExplorer && projectsError ? (
-        <main className="flex-grow-1 min-h-0 overflow-auto p-3 p-lg-4">
-          <div className="mx-auto picker-wrap">
-            <div className="card border-0 shadow-sm">
-              <div className="card-body">
-                <EmptyState
-                  icon="warning"
-                  title="Projects could not be loaded"
-                  body={projectsError.message}
-                  action={
-                    <button type="button" className="btn btn-outline-primary btn-sm" onClick={loadProjects}>
-                      Retry
-                    </button>
-                  }
-                />
-              </div>
-            </div>
-          </div>
-        </main>
-      ) : null}
-
-      {!isLoadingProjects && !projectsError ? (
-        <main
-          className={showExplorer ? 'flex-grow-1 min-h-0 overflow-auto p-3 p-lg-4' : 'd-none'}
-          aria-hidden={!showExplorer}
-          inert={!showExplorer ? true : undefined}
-        >
-          <div className="mx-auto picker-wrap">
-            <FileExplorer
-              key={projectId}
-              projectName={selectedProject?.name}
-              items={projectItems}
-              isLoading={isLoadingFiles}
-              error={filesError}
-              onRetry={loadFiles}
-              onSelectFile={(file) => openFile(file, { resetHistory: true })}
-              onOpenSettings={() => setSettingsOpen(true)}
-              canReturnToDrawing={Boolean(currentSheet)}
-              onReturnToDrawing={() => setExplorerOpen(false)}
-            />
-          </div>
-        </main>
-      ) : null}
+      <main
+        className={showExplorer ? 'flex-grow-1 min-h-0 overflow-auto p-3 p-lg-4' : 'd-none'}
+        aria-hidden={!showExplorer}
+        inert={!showExplorer ? true : undefined}
+      >
+        <div className="mx-auto picker-wrap">
+          <FileExplorer
+            key={projectId}
+            projectName={currentProject?.name}
+            items={projectItems}
+            isLoading={isLoadingFiles}
+            error={filesError}
+            onRetry={loadFiles}
+            onRefresh={loadFiles}
+            onSelectFile={(file) => openFile(file, { resetHistory: true })}
+            onOpenSettings={() => setSettingsOpen(true)}
+            canReturnToDrawing={Boolean(currentSheet)}
+            onReturnToDrawing={() => setExplorerOpen(false)}
+          />
+        </div>
+      </main>
       {pendingMatches ? (
         <MatchPicker
           code={pendingMatches.code}

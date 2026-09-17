@@ -1,19 +1,10 @@
 import React, { useState } from 'react';
 import SectionCard from '../Modus/SectionCard';
-import { REGIONS } from '../../api/config';
 import { DEFAULT_CODE_REGEX, normalizeRegexSource } from '../../utils/drawingCodes';
 import { Logger } from '../../utils/logger';
 import { APP_NAME, APP_VERSION } from '../../appInfo';
 
-const SettingsView = ({
-  settings,
-  updateSetting,
-  showToast,
-  projects,
-  embeddedProject,
-  selectedProjectId,
-  onProjectChange,
-}) => {
+const SettingsView = ({ settings, updateSetting, showToast, currentProject }) => {
   const [regexDraft, setRegexDraft] = useState(settings.codeRegex);
 
   const handleSaveRegex = () => {
@@ -40,50 +31,17 @@ const SettingsView = ({
   return (
     <div className="settings-page d-flex flex-column gap-3">
       <SectionCard
-        title="Project and region"
-        description="Plan Linker searches the active Trimble Connect project for matching detail PDFs."
+        title="Project"
+        description="Plan Linker is locked to the Trimble Connect project that opened this extension."
       >
-        <div className="row g-3">
-          <div className="col-md-6">
-            <label className="form-label" htmlFor="settings-region">
-              Region
-            </label>
-            <select
-              id="settings-region"
-              className="form-select"
-              value={settings.region}
-              onChange={(event) => updateSetting('region', event.target.value)}
-            >
-              {REGIONS.map((region) => (
-                <option key={region.id} value={region.id}>
-                  {region.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="col-md-6">
-            <label className="form-label" htmlFor="settings-project">
-              Project
-            </label>
-            <select
-              id="settings-project"
-              className="form-select"
-              value={selectedProjectId}
-              onChange={(event) => onProjectChange(event.target.value)}
-              disabled={Boolean(embeddedProject?.id)}
-            >
-              <option value="">Select a project</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-            {embeddedProject?.id ? (
-              <div className="form-text">Locked to the project that opened this extension.</div>
-            ) : null}
-          </div>
-        </div>
+        {currentProject?.name ? (
+          <>
+            <p className="fw-semibold mb-1">{currentProject.name}</p>
+            <p className="small text-muted mb-0">{currentProject.id}</p>
+          </>
+        ) : (
+          <p className="text-muted mb-0">Open Plan Linker from a project in Trimble Connect.</p>
+        )}
       </SectionCard>
 
       <SectionCard
@@ -155,6 +113,8 @@ const SettingsView = ({
           </button>
         </div>
       </SectionCard>
+
+      <footer className="small text-muted">Version {APP_VERSION}</footer>
     </div>
   );
 };

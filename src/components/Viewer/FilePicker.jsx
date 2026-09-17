@@ -62,7 +62,7 @@ const FilePicker = ({
           <EmptyState
             icon="folder-open"
             title="No PDF files found"
-            body="Upload drawing PDFs to this project, or check that the selected region matches the project."
+            body="Upload drawing PDFs to this project, or reopen Plan Linker from Trimble Connect."
           />
         ) : null}
 

@@ -3,6 +3,7 @@ import ModusIcon from '../Modus/ModusIcon';
 import Spinner from '../Modus/Spinner';
 import EmptyState from '../Modus/EmptyState';
 import BreadcrumbNav from './BreadcrumbNav';
+import { APP_NAME, APP_VERSION } from '../../appInfo';
 
 const formatBytes = (bytes) => {
   const value = Number(bytes);
@@ -34,6 +35,7 @@ const FileExplorer = ({
   isLoading,
   error,
   onRetry,
+  onRefresh,
   onSelectFile,
   onOpenSettings,
   canReturnToDrawing,
@@ -100,7 +102,7 @@ const FileExplorer = ({
             <p className="text-muted small mb-0">
               {projectName
                 ? `${pdfCount} PDF${pdfCount === 1 ? '' : 's'} in ${projectName}, including subfolders.`
-                : 'Choose a project, then open a drawing.'}
+                : 'Open Plan Linker from a Trimble Connect project to browse drawings.'}
             </p>
           </div>
           <div className="d-flex flex-wrap align-items-center gap-2">
@@ -130,6 +132,17 @@ const FileExplorer = ({
               }}
             />
           </div>
+          <button
+            type="button"
+            className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1"
+            onClick={onRefresh || onRetry}
+            disabled={isLoading}
+            title="Vernieuwen / Refresh"
+            aria-label="Vernieuwen / Refresh"
+          >
+            <ModusIcon name="arrow-clockwise" size="16px" />
+            <span className="d-none d-md-inline">Refresh</span>
+          </button>
           <label className="visually-hidden" htmlFor="explorer-search">
             Search drawings
           </label>
@@ -209,6 +222,10 @@ const FileExplorer = ({
             ))}
           </ul>
         ) : null}
+
+        <footer className="small text-muted mt-3 mb-0">
+          {APP_NAME} v{APP_VERSION}
+        </footer>
       </div>
     </div>
   );
