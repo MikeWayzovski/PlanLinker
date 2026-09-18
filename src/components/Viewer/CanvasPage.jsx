@@ -16,6 +16,9 @@ const CanvasPage = ({
   isBusy,
   busyLabel,
   lookupDescription,
+  showCanvas = true,
+  showHotspots = true,
+  interactionMode = 'select',
 }) => {
   const canvasRef = useRef(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -120,16 +123,17 @@ const CanvasPage = ({
   }, [pdf, pageNumber, scale, codeRegex, textScan, onHotspots]);
 
   return (
-    <div className="canvas-stage">
+    <div className={`canvas-stage${interactionMode === 'pan' ? ' canvas-stage-pan' : ''}`}>
       <div className="canvas-sheet">
-        <canvas ref={canvasRef} className="pdf-canvas" />
+        <canvas ref={canvasRef} className={`pdf-canvas${showCanvas ? '' : ' pdf-canvas-hidden'}`} />
         <HotspotOverlay
           hotspots={pageHotspots}
           canvasWidth={size.width}
           canvasHeight={size.height}
           onSelect={onSelectHotspot}
-          disabled={isBusy}
+          disabled={isBusy || interactionMode === 'pan'}
           lookupDescription={lookupDescription}
+          visible={showHotspots}
         />
         {isBusy ? (
           <div className="canvas-loading" role="status" aria-live="polite">

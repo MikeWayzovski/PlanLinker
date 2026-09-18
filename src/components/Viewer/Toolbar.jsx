@@ -1,6 +1,28 @@
 import React from 'react';
 import ModusIcon from '../Modus/ModusIcon';
 
+const ToolButton = ({
+  label,
+  title,
+  icon,
+  onClick,
+  disabled,
+  pressed,
+  extraClasses = '',
+}) => (
+  <button
+    type="button"
+    className={`btn btn-sm btn-icon-only ${pressed ? 'btn-primary' : 'btn-outline-secondary'} ${extraClasses}`.trim()}
+    onClick={onClick}
+    disabled={disabled}
+    aria-label={label}
+    aria-pressed={pressed}
+    title={title || label}
+  >
+    <ModusIcon name={icon} size="16px" />
+  </button>
+);
+
 const Toolbar = ({
   title,
   canGoBack,
@@ -15,119 +37,130 @@ const Toolbar = ({
   fitMode,
   onFitWidth,
   onFitPage,
-  hotspotCount,
+  tool,
+  onToolChange,
   panelOpen,
   onTogglePanel,
   settingsOpen,
   onToggleSettings,
+  disabled,
 }) => (
-  <header className="navbar navbar-expand bg-body border-bottom px-2 px-md-3 py-2 flex-shrink-0 viewer-toolbar">
-    <div className="d-flex align-items-center gap-2 min-w-0 me-auto">
+  <header className="navbar navbar-expand viewer-toolbar flex-shrink-0 px-2 px-md-3 py-2">
+    <div className="d-flex align-items-center gap-2 min-w-0 me-2">
       <ModusIcon name="file-pdf" size="22px" extraClasses="text-primary flex-shrink-0" />
       <h1 className="h6 mb-0 text-truncate" title={title}>
         {title || 'Plan Linker'}
       </h1>
     </div>
 
-    <div className="d-flex align-items-center gap-1 flex-wrap justify-content-end">
-      <button
-        type="button"
-        className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
-        onClick={onBrowseFiles}
-      >
-        <ModusIcon name="folder-open" size="16px" />
-        <span className="d-none d-md-inline">Browse files</span>
-        <span className="d-md-none">Files</span>
-      </button>
-
-      <button
-        type="button"
-        className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
-        onClick={onBack}
-        disabled={!canGoBack}
-      >
-        <ModusIcon name="arrow-left" size="16px" />
-        <span className="d-none d-md-inline">Back to overview</span>
-        <span className="d-md-none">Back</span>
-      </button>
-
-      <div className="vr mx-1 d-none d-md-block" />
-
-      <label className="visually-hidden" htmlFor="page-select">
-        Page
-      </label>
-      <input
-        id="page-select"
-        type="number"
-        className="form-control form-control-sm toolbar-page-input"
-        min={1}
-        max={pageCount || 1}
-        value={pageNumber}
-        onChange={(event) => onPageChange(Number(event.target.value))}
-        disabled={!pageCount}
-        aria-label="Page number"
-      />
-      <span className="small text-muted">of {pageCount || 0}</span>
+    <div className="d-flex align-items-center gap-1 flex-wrap justify-content-end flex-grow-1">
+      <div className="btn-group" role="group" aria-label="Navigate">
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
+          onClick={onBrowseFiles}
+        >
+          <ModusIcon name="folder-open" size="16px" />
+          <span className="d-none d-lg-inline">Browse files</span>
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
+          onClick={onBack}
+          disabled={!canGoBack}
+        >
+          <ModusIcon name="arrow-left" size="16px" />
+          <span className="d-none d-xl-inline">Back</span>
+        </button>
+      </div>
 
       <div className="vr mx-1 d-none d-md-block" />
 
-      <button
-        type="button"
-        className="btn btn-sm btn-icon-only"
-        onClick={onZoomOut}
-        disabled={!pageCount}
-        aria-label="Zoom out"
-        title="Zoom out"
-      >
-        <ModusIcon name="magnifying-glass-minus" size="18px" />
-      </button>
-      <span className="small text-muted toolbar-scale-label">{scaleLabel}</span>
-      <button
-        type="button"
-        className="btn btn-sm btn-icon-only"
-        onClick={onZoomIn}
-        disabled={!pageCount}
-        aria-label="Zoom in"
-        title="Zoom in"
-      >
-        <ModusIcon name="magnifying-glass-plus" size="18px" />
-      </button>
-      <button
-        type="button"
-        className={`btn btn-sm ${fitMode === 'width' ? 'btn-primary' : 'btn-outline-secondary'}`}
-        onClick={onFitWidth}
-        disabled={!pageCount}
-        aria-pressed={fitMode === 'width'}
-      >
-        Fit width
-      </button>
-      <button
-        type="button"
-        className={`btn btn-sm ${fitMode === 'page' ? 'btn-primary' : 'btn-outline-secondary'}`}
-        onClick={onFitPage}
-        disabled={!pageCount}
-        aria-pressed={fitMode === 'page'}
-      >
-        Fit page
-      </button>
+      <div className="btn-group" role="group" aria-label="Pointer tools">
+        <ToolButton
+          label="Select"
+          icon="cursor"
+          pressed={tool === 'select'}
+          onClick={() => onToolChange('select')}
+          disabled={disabled}
+        />
+        <ToolButton
+          label="Pan"
+          icon="hand-grabbing"
+          pressed={tool === 'pan'}
+          onClick={() => onToolChange('pan')}
+          disabled={disabled}
+        />
+      </div>
 
-      <button
-        type="button"
-        className={`btn btn-sm ${panelOpen ? 'btn-primary' : 'btn-outline-secondary'}`}
+      <div className="vr mx-1 d-none d-md-block" />
+
+      <div className="btn-group" role="group" aria-label="Zoom">
+        <ToolButton label="Zoom out" icon="minus" onClick={onZoomOut} disabled={disabled} />
+        <span className="small text-muted toolbar-scale-label align-self-center px-2">{scaleLabel}</span>
+        <ToolButton label="Zoom in" icon="plus" onClick={onZoomIn} disabled={disabled} />
+        <ToolButton
+          label="Fit to width"
+          icon="arrows-horizontal"
+          pressed={fitMode === 'width'}
+          onClick={onFitWidth}
+          disabled={disabled}
+        />
+        <ToolButton
+          label="Fit to page"
+          icon="corners-out"
+          pressed={fitMode === 'page'}
+          onClick={onFitPage}
+          disabled={disabled}
+        />
+      </div>
+
+      <div className="vr mx-1 d-none d-md-block" />
+
+      <div className="btn-group" role="group" aria-label="Page">
+        <ToolButton
+          label="Previous page"
+          icon="caret-left"
+          onClick={() => onPageChange(pageNumber - 1)}
+          disabled={disabled || pageNumber <= 1}
+        />
+        <label className="visually-hidden" htmlFor="page-select">
+          Page
+        </label>
+        <input
+          id="page-select"
+          type="number"
+          className="form-control form-control-sm toolbar-page-input"
+          min={1}
+          max={pageCount || 1}
+          value={pageNumber}
+          onChange={(event) => onPageChange(Number(event.target.value))}
+          disabled={disabled}
+          aria-label="Current page"
+        />
+        <span className="small text-muted align-self-center px-1">/ {pageCount || 0}</span>
+        <ToolButton
+          label="Next page"
+          icon="caret-right"
+          onClick={() => onPageChange(pageNumber + 1)}
+          disabled={disabled || pageNumber >= pageCount}
+        />
+      </div>
+
+      <div className="vr mx-1 d-none d-md-block" />
+
+      <ToolButton
+        label="Layer management"
+        icon="stack"
+        pressed={panelOpen}
         onClick={onTogglePanel}
-        aria-pressed={panelOpen}
-      >
-        Hotspots{hotspotCount ? ` (${hotspotCount})` : ''}
-      </button>
-      <button
-        type="button"
-        className={`btn btn-sm ${settingsOpen ? 'btn-primary' : 'btn-outline-secondary'} d-inline-flex align-items-center gap-1`}
+      />
+      <ToolButton
+        label="Settings"
+        icon="gear"
+        pressed={settingsOpen}
         onClick={onToggleSettings}
-        aria-pressed={settingsOpen}
-      >
-        <ModusIcon name="gear" size="16px" />
-        <span className="d-none d-lg-inline">Settings</span>
-      </button>
+      />
     </div>
   </header>
 );

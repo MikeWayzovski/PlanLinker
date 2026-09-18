@@ -12,41 +12,39 @@ const HotspotPanel = ({ hotspots, scan, onSelect, disabled, lookupDescription })
       : 'Adjust the matching pattern in Settings if detail marks use a different format.';
 
   return (
-  <aside className="hotspot-panel bg-body border-end flex-shrink-0" aria-label="Detected hotspots">
-    <div className="px-3 py-2 border-bottom">
-      <h2 className="h6 mb-0">Hotspots</h2>
-      <p className="small text-muted mb-0">
-        {typeof itemCount === 'number' ? `${itemCount} text fragment${itemCount === 1 ? '' : 's'} scanned` : 'Codes found on this page'}
-      </p>
+    <div className="hotspot-panel-section d-flex flex-column min-h-0 flex-grow-1">
+      <div className="px-3 py-2 border-bottom">
+        <h3 className="h6 mb-0">Hotspots</h3>
+        <p className="small text-muted mb-0">
+          {typeof itemCount === 'number'
+            ? `${itemCount} text fragment${itemCount === 1 ? '' : 's'} scanned`
+            : 'Codes found on this page'}
+        </p>
+      </div>
+      <div className="hotspot-panel-list">
+        {hotspots.length === 0 ? (
+          <EmptyState icon="magnifying-glass" title={emptyTitle} body={emptyBody} />
+        ) : (
+          <ul className="list-group list-group-flush">
+            {hotspots.map((spot) => (
+              <li key={spot.key} className="list-group-item px-0">
+                <button
+                  type="button"
+                  className="btn btn-link text-decoration-none w-100 text-start px-3 py-2"
+                  onClick={() => onSelect(spot)}
+                  disabled={disabled}
+                >
+                  <span className="fw-semibold d-block">{spot.code}</span>
+                  {lookupDescription?.(spot.code) ? (
+                    <span className="d-block small text-muted">{lookupDescription(spot.code)}</span>
+                  ) : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
-    <div className="hotspot-panel-list">
-      {hotspots.length === 0 ? (
-        <EmptyState
-          icon="magnifying-glass"
-          title={emptyTitle}
-          body={emptyBody}
-        />
-      ) : (
-        <ul className="list-group list-group-flush">
-          {hotspots.map((spot) => (
-            <li key={spot.key} className="list-group-item px-0">
-              <button
-                type="button"
-                className="btn btn-link text-decoration-none w-100 text-start px-3 py-2"
-                onClick={() => onSelect(spot)}
-                disabled={disabled}
-              >
-                <span className="fw-semibold d-block">{spot.code}</span>
-                {lookupDescription?.(spot.code) ? (
-                  <span className="d-block small text-muted">{lookupDescription(spot.code)}</span>
-                ) : null}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  </aside>
   );
 };
 

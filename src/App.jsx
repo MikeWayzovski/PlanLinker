@@ -497,6 +497,8 @@ function App() {
             isBusy={isSearching || Boolean(lookupLabel)}
             busyLabel={lookupLabel || 'Looking up drawing…'}
             lookupDescription={lookupDescription}
+            indexSourceName={indexSourceName}
+            indexCount={indexCount}
           />
         </div>
       ) : null}

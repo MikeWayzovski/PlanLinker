@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePDF } from '../../hooks/usePDF';
 import Toolbar from './Toolbar';
 import CanvasPage from './CanvasPage';
-import HotspotPanel from './HotspotPanel';
+import LayerPanel from './LayerPanel';
 import Spinner from '../Modus/Spinner';
 import EmptyState from '../Modus/EmptyState';
 
@@ -38,8 +38,11 @@ const PDFViewer = ({
   busyLabel,
   extraToolbar,
   lookupDescription,
+  indexSourceName = '',
+  indexCount = 0,
 }) => {
   const stageRef = useRef(null);
+  const panRef = useRef({ active: false, x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
   const { pdf, pageCount, isLoading, error } = usePDF(source, sourceKey);
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1);
@@ -47,6 +50,9 @@ const PDFViewer = ({
   const [hotspots, setHotspots] = useState([]);
   const [scan, setScan] = useState(null);
   const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
+  const [tool, setTool] = useState('select');
+  const [showCanvas, setShowCanvas] = useState(true);
+  const [showHotspots, setShowHotspots] = useState(true);
 
   const zoomBy = useCallback((factor) => {
     setFitMode(null);
@@ -99,6 +105,43 @@ const PDFViewer = ({
   }, []);
 
   useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || tool !== 'pan') return undefined;
+
+    const onDown = (event) => {
+      if (event.button !== 0) return;
+      panRef.current = {
+        active: true,
+        x: event.clientX,
+        y: event.clientY,
+        scrollLeft: stage.scrollLeft,
+        scrollTop: stage.scrollTop,
+      };
+      stage.classList.add('is-panning');
+      event.preventDefault();
+    };
+    const onMove = (event) => {
+      if (!panRef.current.active) return;
+      stage.scrollLeft = panRef.current.scrollLeft - (event.clientX - panRef.current.x);
+      stage.scrollTop = panRef.current.scrollTop - (event.clientY - panRef.current.y);
+    };
+    const onUp = () => {
+      panRef.current.active = false;
+      stage.classList.remove('is-panning');
+    };
+
+    stage.addEventListener('mousedown', onDown);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      stage.removeEventListener('mousedown', onDown);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      stage.classList.remove('is-panning');
+    };
+  }, [tool]);
+
+  useEffect(() => {
     if (!fitMode || !pageSize.width || !pageSize.height) return undefined;
     const node = stageRef.current;
     if (!node) return undefined;
@@ -143,6 +186,7 @@ const PDFViewer = ({
   }, []);
 
   const scaleLabel = useMemo(() => `${Math.round(scale * 100)}%`, [scale]);
+  const toolsDisabled = !pageCount || Boolean(error);
 
   return (
     <div className="viewer-shell d-flex flex-column min-h-0 flex-grow-1">
@@ -160,26 +204,37 @@ const PDFViewer = ({
         fitMode={fitMode}
         onFitWidth={() => setFitMode('width')}
         onFitPage={() => setFitMode('page')}
-        hotspotCount={hotspots.length}
+        tool={tool}
+        onToolChange={setTool}
         panelOpen={showPanel}
         onTogglePanel={onTogglePanel}
         settingsOpen={settingsOpen}
         onToggleSettings={onToggleSettings}
+        disabled={toolsDisabled}
       />
       {extraToolbar}
 
       <div className="viewer-body d-flex flex-grow-1 min-h-0">
         {showPanel ? (
-          <HotspotPanel
+          <LayerPanel
+            showCanvas={showCanvas}
+            onToggleCanvas={setShowCanvas}
+            showHotspots={showHotspots}
+            onToggleHotspots={setShowHotspots}
+            indexSourceName={indexSourceName}
+            indexCount={indexCount}
             hotspots={hotspots}
             scan={scan}
             onSelect={onHotspotClick}
-            disabled={isBusy}
+            disabled={isBusy || tool === 'pan'}
             lookupDescription={lookupDescription}
           />
         ) : null}
 
-        <div className="viewer-stage flex-grow-1 min-w-0 min-h-0" ref={stageRef}>
+        <div
+          className={`viewer-stage flex-grow-1 min-w-0 min-h-0${tool === 'pan' ? ' is-pan' : ''}`}
+          ref={stageRef}
+        >
           {isLoading ? (
             <div className="d-flex align-items-center justify-content-center h-100">
               <Spinner label="Opening drawing…" />
@@ -187,11 +242,7 @@ const PDFViewer = ({
           ) : null}
 
           {error ? (
-            <EmptyState
-              icon="warning"
-              title="This PDF could not be opened"
-              body={error.message}
-            />
+            <EmptyState icon="warning" title="This PDF could not be opened" body={error.message} />
           ) : null}
 
           {pdf && !error ? (
@@ -205,6 +256,9 @@ const PDFViewer = ({
               isBusy={isBusy}
               busyLabel={busyLabel}
               lookupDescription={lookupDescription}
+              showCanvas={showCanvas}
+              showHotspots={showHotspots}
+              interactionMode={tool}
             />
           ) : null}
         </div>

@@ -174,7 +174,7 @@ const SettingsView = ({
             onChange={(event) => updateSetting('showHotspotPanel', event.target.checked)}
           />
           <label className="form-check-label" htmlFor="settings-panel">
-            Show the hotspot list beside the drawing
+            Show the layer panel beside the drawing
           </label>
         </div>
       </SectionCard>

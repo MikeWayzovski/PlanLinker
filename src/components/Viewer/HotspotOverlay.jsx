@@ -1,10 +1,18 @@
 import React from 'react';
 
-const HotspotOverlay = ({ hotspots, canvasWidth, canvasHeight, onSelect, disabled, lookupDescription }) => {
-  if (!hotspots?.length || !canvasWidth || !canvasHeight) return null;
+const HotspotOverlay = ({
+  hotspots,
+  canvasWidth,
+  canvasHeight,
+  onSelect,
+  disabled,
+  lookupDescription,
+  visible = true,
+}) => {
+  if (!visible || !hotspots?.length || !canvasWidth || !canvasHeight) return null;
 
   return (
-    <div className="hotspot-overlay" aria-hidden={disabled}>
+    <div className={`hotspot-overlay${disabled ? ' is-inert' : ''}`} aria-hidden={disabled}>
       {hotspots.map((spot) => {
         const description = lookupDescription?.(spot.code) || '';
         const label = description ? `${spot.code} - ${description}` : spot.code;
