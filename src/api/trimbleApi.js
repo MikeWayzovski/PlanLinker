@@ -66,6 +66,7 @@ export const normalizeEntry = (entry) => ({
   path: pathTextOf(entry),
   size: Number(entry?.size ?? entry?.sz ?? entry?.fileSize) || 0,
   modifiedOn: entry?.modifiedOn || entry?.updatedOn || '',
+  thumbnailUrl: entry?.thumbnailUrl || entry?.thumbnail || entry?.previewUrl || '',
   raw: entry,
 });
 
@@ -108,6 +109,30 @@ export const getProjectDetails = async (token, regionName, projectId) => {
   const baseUrl = getBaseUrlForRegion(regionName);
   return fetchJson(`${baseUrl}${API_V20}/projects/${projectId}?fullyLoaded=true`, token);
 };
+
+export const getFileThumbnailUrl = (regionName, fileId, versionId = '') => {
+  if (!fileId) return '';
+  const query = versionId ? `?versionId=${encodeURIComponent(versionId)}` : '';
+  return `${getBaseUrlForRegion(regionName)}${API_V20}/files/${encodeURIComponent(fileId)}/thumbnail${query}`;
+};
+
+export const getProjectThumbnailUrl = (regionName, projectId, project) => {
+  const fromProject =
+    project?.thumbnailUrl ||
+    project?.thumbnail ||
+    project?.imageUrl ||
+    project?.logoUrl ||
+    '';
+  if (fromProject) return fromProject;
+  if (!projectId) return '';
+  return `${getBaseUrlForRegion(regionName)}${API_V20}/projects/${encodeURIComponent(projectId)}/thumbnail`;
+};
+
+export const withFileThumbnails = (entries, regionName) =>
+  (entries || []).map((entry) => {
+    if (!entry?.id || entry.type === 'FOLDER' || entry.thumbnailUrl) return entry;
+    return { ...entry, thumbnailUrl: getFileThumbnailUrl(regionName, entry.id, entry.versionId) };
+  });
 
 const readRootId = (project) =>
   project?.rootId || project?.rootFolderId || project?.root?.id || '';

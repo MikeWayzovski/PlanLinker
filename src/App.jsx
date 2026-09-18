@@ -18,9 +18,10 @@ import { parseDrawingListBlob } from './utils/drawingListParser';
 import { useWorkspaceApi, SETTINGS_EVENT, EXPLORER_EVENT, REFRESH_FILES_EVENT } from './utils/workspaceBridge';
 import { resolveAccessToken, isTokenUnavailable, clearCachedToken } from './utils/accessToken';
 import { isTidConfigured } from './api/client';
-import { getCurrentUser, getProjectEntries } from './api/trimbleApi';
+import { getCurrentUser, getProjectDetails, getProjectEntries, getProjectThumbnailUrl, withFileThumbnails } from './api/trimbleApi';
 import { regionFromProject } from './api/config';
 import { Logger } from './utils/logger';
+import { projectMetricsFromItems } from './utils/formatBytes';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from './appInfo';
 
 const revokeObjectUrl = (url) => {
@@ -47,6 +48,8 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingMatches, setPendingMatches] = useState(null);
   const [lookupLabel, setLookupLabel] = useState('');
+  const [pickingIndex, setPickingIndex] = useState(false);
+  const [projectDetails, setProjectDetails] = useState(null);
 
   const hasAccess = isAuthenticated || (isEmbedded && Boolean(embeddedToken));
   const currentProject = embeddedProject;
@@ -131,6 +134,24 @@ function App() {
     };
   }, [hasAccess, getToken]);
 
+  useEffect(() => {
+    if (!hasAccess || !projectId) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        const details = await getProjectDetails(token, region, projectId);
+        if (!cancelled) setProjectDetails({ ...details, id: details?.id || projectId });
+      } catch (error) {
+        Logger.warn('Could not load project details', error.message);
+        if (!cancelled) setProjectDetails({ id: projectId });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasAccess, projectId, getToken, region]);
+
   const loadFiles = useCallback(async () => {
     if (!hasAccess || !projectId) {
       setProjectItems([]);
@@ -140,7 +161,7 @@ function App() {
     setFilesError(null);
     try {
       const token = await getToken();
-      const items = await getProjectEntries(token, region, projectId);
+      const items = withFileThumbnails(await getProjectEntries(token, region, projectId), region);
       setProjectItems(items);
     } catch (error) {
       Logger.error('Could not list project folders', error.message);
@@ -217,6 +238,7 @@ function App() {
         setCurrentSheet(nextSheet);
         setExplorerOpen(false);
         setSettingsOpen(false);
+        setPickingIndex(false);
       } catch (error) {
         reportError(error, `Could not open ${file.name}.`);
       } finally {
@@ -230,17 +252,22 @@ function App() {
     async (file) => {
       if (!file) return;
       setIsIndexing(true);
+      Logger.info(`Started indexing drawing list PDF: ${file.name}`);
       try {
         const blob = await download(file);
         const map = await parseDrawingListBlob(blob);
         const count = new Set(Object.values(map)).size;
         if (!count) {
+          Logger.warn('Could not parse table structures from drawing list: no drawing codes found');
           showToast('No drawing codes were found in that PDF.', 'warning');
           return;
         }
         setProjectIndex(map, file.name, file.id);
+        setPickingIndex(false);
+        Logger.info(`Successfully indexed ${count} drawing codes from ${file.name}`);
         showToast(`Indexed ${count} drawing${count === 1 ? '' : 's'} from ${file.name}.`, 'success');
       } catch (error) {
+        Logger.warn(`Could not parse table structures from drawing list: ${error.message}`);
         reportError(error, `Could not index ${file.name}.`);
       } finally {
         setIsIndexing(false);
@@ -255,6 +282,24 @@ function App() {
     },
     [dismissCandidate],
   );
+
+  const handleChangeIndex = useCallback(() => {
+    setPickingIndex((open) => !open);
+    setSettingsOpen(false);
+    setExplorerOpen(true);
+  }, []);
+
+  const handleStartIndexPicker = useCallback(() => {
+    setPickingIndex(true);
+    setSettingsOpen(false);
+    setExplorerOpen(true);
+  }, []);
+
+  const handleClearIndex = useCallback(() => {
+    clearIndex();
+    setPickingIndex(false);
+    showToast('Drawing index cleared.', 'info');
+  }, [clearIndex, showToast]);
 
   const handleHotspot = useCallback(
     async (spot) => {
@@ -306,6 +351,19 @@ function App() {
     [currentSheet],
   );
 
+  const { fileCount, totalSize } = useMemo(() => projectMetricsFromItems(projectItems), [projectItems]);
+  const activeProjectDetails = projectDetails?.id === projectId ? projectDetails : null;
+  const projectThumbnailUrl = useMemo(
+    () =>
+      getProjectThumbnailUrl(region, projectId, {
+        thumbnail: activeProjectDetails?.thumbnail || currentProject?.thumbnail,
+        thumbnailUrl: activeProjectDetails?.thumbnailUrl || currentProject?.thumbnailUrl,
+        imageUrl: activeProjectDetails?.imageUrl || currentProject?.imageUrl,
+        logoUrl: activeProjectDetails?.logoUrl || currentProject?.logoUrl,
+      }),
+    [region, projectId, activeProjectDetails, currentProject],
+  );
+
   const showSettings = settingsOpen;
   const showExplorer = !settingsOpen && (!currentSheet || explorerOpen);
   const showViewer = Boolean(currentSheet) && !settingsOpen && !explorerOpen;
@@ -314,6 +372,12 @@ function App() {
   useEffect(() => {
     explorerVisibleRef.current = showExplorer;
   }, [showExplorer]);
+
+  useEffect(() => {
+    // Reset picker when the Connect project changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPickingIndex(false);
+  }, [projectId]);
 
   const callbackPath = window.location.pathname.replace(/\/$/, '') || '/';
   const isAuthCallback =
@@ -363,9 +427,15 @@ function App() {
               updateSetting={updateSetting}
               showToast={showToast}
               currentProject={currentProject}
+              projectThumbnailUrl={projectThumbnailUrl}
+              fileCount={fileCount}
+              totalSize={totalSize}
+              getToken={getToken}
               indexSourceName={indexSourceName}
               indexCount={indexCount}
-              onClearIndex={clearIndex}
+              isIndexing={isIndexing}
+              onChangeIndex={handleStartIndexPicker}
+              onClearIndex={handleClearIndex}
             />
           </div>
         </main>
@@ -423,6 +493,12 @@ function App() {
             onIndexFile={handleIndexFile}
             onDismissIndex={handleDismissIndex}
             isIndexing={isIndexing}
+            indexSourceName={indexSourceName}
+            indexCount={indexCount}
+            pickingIndex={pickingIndex}
+            onChangeIndex={handleChangeIndex}
+            onClearIndex={handleClearIndex}
+            getToken={getToken}
           />
         </div>
       </main>

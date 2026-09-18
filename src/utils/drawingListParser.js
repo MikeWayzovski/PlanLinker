@@ -1,6 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { normalizeDrawingCode } from './drawingCodes';
+import { Logger } from './logger';
 
 if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -163,13 +164,25 @@ const parseRowIntoMap = (row, map) => {
  */
 export const parseDrawingListPDF = async (pdfDocument) => {
   const map = {};
-  const pageCount = Math.min(Number(pdfDocument?.numPages) || 0, MAX_PAGES);
-  for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
-    const page = await pdfDocument.getPage(pageNumber);
-    const content = await page.getTextContent({ disableNormalization: false });
-    clusterRowsByY(content?.items || []).forEach((row) => parseRowIntoMap(row, map));
+  try {
+    const pageCount = Math.min(Number(pdfDocument?.numPages) || 0, MAX_PAGES);
+    if (!pageCount) {
+      Logger.warn('Could not parse table structures from drawing list: PDF has no pages');
+      return map;
+    }
+    for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
+      const page = await pdfDocument.getPage(pageNumber);
+      const content = await page.getTextContent({ disableNormalization: false });
+      clusterRowsByY(content?.items || []).forEach((row) => parseRowIntoMap(row, map));
+    }
+    if (Object.keys(map).length === 0) {
+      Logger.warn('Could not parse table structures from drawing list: no code/description rows found');
+    }
+    return map;
+  } catch (error) {
+    Logger.warn(`Could not parse table structures from drawing list: ${error.message}`);
+    throw error;
   }
-  return map;
 };
 
 export const parseDrawingListBlob = async (blob) => {

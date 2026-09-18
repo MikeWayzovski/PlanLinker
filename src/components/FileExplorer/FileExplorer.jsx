@@ -1,28 +1,18 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import ModusIcon from '../Modus/ModusIcon';
 import Spinner from '../Modus/Spinner';
 import EmptyState from '../Modus/EmptyState';
+import AuthImage from '../Modus/AuthImage';
 import BreadcrumbNav from './BreadcrumbNav';
+import DrawingIndexStatus from './DrawingIndexStatus';
 import { APP_NAME, APP_VERSION } from '../../appInfo';
+import { formatBytes } from '../../utils/formatBytes';
+import { Logger } from '../../utils/logger';
 import {
   descriptionForFile,
   fileMatchesSearch,
   findIndexCandidate,
 } from '../../utils/drawingListParser';
-
-const formatBytes = (bytes) => {
-  const value = Number(bytes);
-  if (!Number.isFinite(value) || value <= 0) return '';
-  if (value < 1024) return `${value} B`;
-  const units = ['KB', 'MB', 'GB'];
-  let size = value / 1024;
-  let unit = 0;
-  while (size >= 1024 && unit < units.length - 1) {
-    size /= 1024;
-    unit += 1;
-  }
-  return `${size.toFixed(size < 10 ? 1 : 0)} ${units[unit]}`;
-};
 
 const byName = (a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' });
 
@@ -33,6 +23,19 @@ const isChildOf = (item, folderId, byId, rootFolderId) => {
   if (item.parentId === folderId) return true;
   return parentMissing && folderId === rootFolderId;
 };
+
+const FileThumb = ({ file, getToken }) => (
+  <span className="file-thumb-wrap">
+    <AuthImage
+      key={file?.thumbnailUrl || file?.id || 'pdf'}
+      src={file?.thumbnailUrl}
+      alt=""
+      className="file-thumb"
+      getToken={getToken}
+      fallback={<ModusIcon name="file-pdf" size="20px" extraClasses="text-danger" />}
+    />
+  </span>
+);
 
 const FileExplorer = ({
   projectName,
@@ -52,13 +55,24 @@ const FileExplorer = ({
   onIndexFile,
   onDismissIndex,
   isIndexing = false,
+  indexSourceName = '',
+  indexCount = 0,
+  pickingIndex = false,
+  onChangeIndex,
+  onClearIndex,
+  getToken,
 }) => {
   const [folderId, setFolderId] = useState(null);
   const [query, setQuery] = useState('');
   const indexCandidate = useMemo(
-    () => (hasIndex || isLoading ? null : findIndexCandidate(items, dismissedIds)),
-    [hasIndex, isLoading, items, dismissedIds],
+    () => (hasIndex || isLoading || pickingIndex ? null : findIndexCandidate(items, dismissedIds)),
+    [hasIndex, isLoading, pickingIndex, items, dismissedIds],
   );
+
+  useEffect(() => {
+    if (!indexCandidate?.name) return;
+    Logger.info(`Detected candidate drawing list PDF: ${indexCandidate.name}`);
+  }, [indexCandidate?.id, indexCandidate?.name]);
 
   const byId = useMemo(() => new Map((items || []).map((item) => [item.id, item])), [items]);
 
@@ -109,6 +123,14 @@ const FileExplorer = ({
 
   const pdfCount = (items || []).filter((item) => item.type !== 'FOLDER' && String(item.name).toLowerCase().endsWith('.pdf')).length;
 
+  const handleFileClick = (file) => {
+    if (pickingIndex) {
+      onIndexFile?.(file);
+      return;
+    }
+    onSelectFile(file);
+  };
+
   return (
     <div className="card border-0 shadow-sm">
       <div className="card-body">
@@ -137,6 +159,22 @@ const FileExplorer = ({
             </button>
           </div>
         </div>
+
+        <DrawingIndexStatus
+          sourceFileName={indexSourceName}
+          indexCount={indexCount}
+          isIndexing={isIndexing}
+          pickingIndex={pickingIndex}
+          bordered
+          onChangeIndex={onChangeIndex}
+          onClearIndex={onClearIndex}
+        />
+
+        {pickingIndex ? (
+          <div className="alert alert-info" role="status">
+            Select a PDF to use as the drawing index for this project.
+          </div>
+        ) : null}
 
         {indexCandidate ? (
           <div className="alert alert-info d-flex flex-wrap align-items-start justify-content-between gap-3" role="alert">
@@ -252,9 +290,9 @@ const FileExplorer = ({
                   <button
                     type="button"
                     className="btn btn-link text-decoration-none w-100 text-start d-flex align-items-center gap-2 px-1 py-2"
-                    onClick={() => onSelectFile(file)}
+                    onClick={() => handleFileClick(file)}
                   >
-                    <ModusIcon name="file-pdf" size="20px" extraClasses="text-danger flex-shrink-0" />
+                    <FileThumb file={file} getToken={getToken} />
                     <span className="min-w-0 flex-grow-1">
                       <span className="d-block text-truncate fw-semibold">{file.name}</span>
                       {description ? (

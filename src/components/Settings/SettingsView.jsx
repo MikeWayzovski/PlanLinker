@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import SectionCard from '../Modus/SectionCard';
+import AuthImage from '../Modus/AuthImage';
+import ModusIcon from '../Modus/ModusIcon';
+import DrawingIndexStatus from '../FileExplorer/DrawingIndexStatus';
 import { DEFAULT_CODE_REGEX, normalizeRegexSource } from '../../utils/drawingCodes';
+import { formatProjectSize } from '../../utils/formatBytes';
 import { Logger } from '../../utils/logger';
 import { APP_NAME, APP_VERSION } from '../../appInfo';
 
@@ -9,8 +13,14 @@ const SettingsView = ({
   updateSetting,
   showToast,
   currentProject,
+  projectThumbnailUrl = '',
+  fileCount = 0,
+  totalSize = 0,
+  getToken,
   indexSourceName = '',
   indexCount = 0,
+  isIndexing = false,
+  onChangeIndex,
   onClearIndex,
 }) => {
   const [regexDraft, setRegexDraft] = useState(settings.codeRegex);
@@ -43,10 +53,25 @@ const SettingsView = ({
         description="Plan Linker is locked to the Trimble Connect project that opened this extension."
       >
         {currentProject?.name ? (
-          <>
-            <p className="fw-semibold mb-1">{currentProject.name}</p>
-            <p className="small text-muted mb-0">{currentProject.id}</p>
-          </>
+          <div className="d-flex align-items-start gap-3">
+            <span className="project-thumb-wrap">
+              <AuthImage
+                key={projectThumbnailUrl || 'project'}
+                src={projectThumbnailUrl}
+                alt=""
+                className="project-thumb"
+                getToken={getToken}
+                fallback={<ModusIcon name="folder-simple" size="28px" extraClasses="text-primary" />}
+              />
+            </span>
+            <div className="min-w-0">
+              <p className="fw-semibold mb-1">{currentProject.name}</p>
+              <p className="small text-muted mb-2">{currentProject.id}</p>
+              <p className="small text-muted mb-0">
+                {formatProjectSize(totalSize)} · {fileCount} file{fileCount === 1 ? '' : 's'}
+              </p>
+            </div>
+          </div>
         ) : (
           <p className="text-muted mb-0">Open Plan Linker from a project in Trimble Connect.</p>
         )}
@@ -115,31 +140,14 @@ const SettingsView = ({
         title="Drawing index"
         description="A project drawing list maps codes such as UO101 to titles used in search and hotspot tooltips."
       >
-        {indexCount > 0 ? (
-          <>
-            <p className="mb-1">
-              {indexCount} drawing{indexCount === 1 ? '' : 's'} indexed
-              {indexSourceName ? ` from ${indexSourceName}` : ''}.
-            </p>
-            <p className="small text-muted mb-0">Stored in this browser for the active project.</p>
-            <div>
-              <button
-                type="button"
-                className="btn btn-outline-secondary btn-sm"
-                onClick={() => {
-                  onClearIndex?.();
-                  showToast('Drawing index cleared.', 'info');
-                }}
-              >
-                Clear index
-              </button>
-            </div>
-          </>
-        ) : (
-          <p className="text-muted mb-0">
-            When a PDF named like a drawing list, register, or index is found, Plan Linker asks to index it.
-          </p>
-        )}
+        <DrawingIndexStatus
+          sourceFileName={indexSourceName}
+          indexCount={indexCount}
+          isIndexing={isIndexing}
+          showCaption={false}
+          onChangeIndex={onChangeIndex}
+          onClearIndex={onClearIndex}
+        />
       </SectionCard>
 
       <SectionCard title="Diagnostics" description={`${APP_NAME} v${APP_VERSION}`}>
