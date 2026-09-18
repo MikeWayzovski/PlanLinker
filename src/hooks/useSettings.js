@@ -3,7 +3,10 @@ import { DEFAULT_CODE_REGEX } from '../utils/drawingCodes';
 
 const STORAGE_KEY = 'sheethop_settings';
 
-const LEGACY_DEFAULTS = [String.raw`(?:DET(?:AIL)?|D)-\d+`];
+const LEGACY_DEFAULTS = [
+  String.raw`(?:DET(?:AIL)?|D)-\d+`,
+  String.raw`(?:DET(?:AIL)?|ST|D)[-./\s]?\d+`,
+];
 
 const DEFAULTS = {
   codeRegex: DEFAULT_CODE_REGEX,

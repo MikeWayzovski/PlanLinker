@@ -15,6 +15,7 @@ const CanvasPage = ({
   onSelectHotspot,
   isBusy,
   busyLabel,
+  lookupDescription,
 }) => {
   const canvasRef = useRef(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -128,6 +129,7 @@ const CanvasPage = ({
           canvasHeight={size.height}
           onSelect={onSelectHotspot}
           disabled={isBusy}
+          lookupDescription={lookupDescription}
         />
         {isBusy ? (
           <div className="canvas-loading" role="status" aria-live="polite">

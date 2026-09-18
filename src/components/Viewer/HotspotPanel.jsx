@@ -1,7 +1,7 @@
 import React from 'react';
 import EmptyState from '../Modus/EmptyState';
 
-const HotspotPanel = ({ hotspots, scan, onSelect, disabled }) => {
+const HotspotPanel = ({ hotspots, scan, onSelect, disabled, lookupDescription }) => {
   const itemCount = scan?.itemCount;
   const noText = itemCount === 0;
   const emptyTitle = noText ? 'No selectable text on this page' : 'No codes on this page';
@@ -36,7 +36,10 @@ const HotspotPanel = ({ hotspots, scan, onSelect, disabled }) => {
                 onClick={() => onSelect(spot)}
                 disabled={disabled}
               >
-                <span className="fw-semibold">{spot.code}</span>
+                <span className="fw-semibold d-block">{spot.code}</span>
+                {lookupDescription?.(spot.code) ? (
+                  <span className="d-block small text-muted">{lookupDescription(spot.code)}</span>
+                ) : null}
               </button>
             </li>
           ))}

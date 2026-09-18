@@ -13,6 +13,8 @@ import SettingsView from './components/Settings/SettingsView';
 import { useToast } from './hooks/useToast';
 import { useSettings } from './hooks/useSettings';
 import { useDrawingSearch } from './hooks/useDrawingSearch';
+import { useProjectIndex } from './hooks/useProjectIndex';
+import { parseDrawingListBlob } from './utils/drawingListParser';
 import { useWorkspaceApi, SETTINGS_EVENT, EXPLORER_EVENT, REFRESH_FILES_EVENT } from './utils/workspaceBridge';
 import { resolveAccessToken, isTokenUnavailable, clearCachedToken } from './utils/accessToken';
 import { isTidConfigured } from './api/client';
@@ -31,6 +33,7 @@ function App() {
   const { isEmbedded, workspaceApi, embeddedToken, embeddedProject } = useWorkspaceApi();
   const { settings, updateSetting } = useSettings();
   const { toasts, showToast, dismissToast } = useToast();
+  const [isIndexing, setIsIndexing] = useState(false);
 
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -50,6 +53,17 @@ function App() {
   const projectId = currentProject?.id || '';
   const region = regionFromProject(currentProject);
   const explorerVisibleRef = useRef(false);
+  const {
+    indexMap,
+    sourceFileName: indexSourceName,
+    dismissedIds,
+    hasIndex,
+    indexCount,
+    setProjectIndex,
+    lookupDescription,
+    clearIndex,
+    dismissCandidate,
+  } = useProjectIndex(projectId);
 
   const getToken = useCallback(
     () =>
@@ -212,6 +226,36 @@ function App() {
     [download, reportError, currentSheet],
   );
 
+  const handleIndexFile = useCallback(
+    async (file) => {
+      if (!file) return;
+      setIsIndexing(true);
+      try {
+        const blob = await download(file);
+        const map = await parseDrawingListBlob(blob);
+        const count = new Set(Object.values(map)).size;
+        if (!count) {
+          showToast('No drawing codes were found in that PDF.', 'warning');
+          return;
+        }
+        setProjectIndex(map, file.name, file.id);
+        showToast(`Indexed ${count} drawing${count === 1 ? '' : 's'} from ${file.name}.`, 'success');
+      } catch (error) {
+        reportError(error, `Could not index ${file.name}.`);
+      } finally {
+        setIsIndexing(false);
+      }
+    },
+    [download, setProjectIndex, showToast, reportError],
+  );
+
+  const handleDismissIndex = useCallback(
+    (file) => {
+      dismissCandidate(file?.id);
+    },
+    [dismissCandidate],
+  );
+
   const handleHotspot = useCallback(
     async (spot) => {
       if (!projectId) {
@@ -319,6 +363,9 @@ function App() {
               updateSetting={updateSetting}
               showToast={showToast}
               currentProject={currentProject}
+              indexSourceName={indexSourceName}
+              indexCount={indexCount}
+              onClearIndex={clearIndex}
             />
           </div>
         </main>
@@ -346,6 +393,7 @@ function App() {
             onHotspotClick={handleHotspot}
             isBusy={isSearching || Boolean(lookupLabel)}
             busyLabel={lookupLabel || 'Looking up drawing…'}
+            lookupDescription={lookupDescription}
           />
         </div>
       ) : null}
@@ -368,6 +416,13 @@ function App() {
             onOpenSettings={() => setSettingsOpen(true)}
             canReturnToDrawing={Boolean(currentSheet)}
             onReturnToDrawing={() => setExplorerOpen(false)}
+            hasIndex={hasIndex}
+            indexMap={indexMap}
+            dismissedIds={dismissedIds}
+            lookupDescription={lookupDescription}
+            onIndexFile={handleIndexFile}
+            onDismissIndex={handleDismissIndex}
+            isIndexing={isIndexing}
           />
         </div>
       </main>

@@ -4,6 +4,11 @@ import Spinner from '../Modus/Spinner';
 import EmptyState from '../Modus/EmptyState';
 import BreadcrumbNav from './BreadcrumbNav';
 import { APP_NAME, APP_VERSION } from '../../appInfo';
+import {
+  descriptionForFile,
+  fileMatchesSearch,
+  findIndexCandidate,
+} from '../../utils/drawingListParser';
 
 const formatBytes = (bytes) => {
   const value = Number(bytes);
@@ -40,9 +45,20 @@ const FileExplorer = ({
   onOpenSettings,
   canReturnToDrawing,
   onReturnToDrawing,
+  hasIndex = false,
+  indexMap = {},
+  dismissedIds = [],
+  lookupDescription,
+  onIndexFile,
+  onDismissIndex,
+  isIndexing = false,
 }) => {
   const [folderId, setFolderId] = useState(null);
   const [query, setQuery] = useState('');
+  const indexCandidate = useMemo(
+    () => (hasIndex || isLoading ? null : findIndexCandidate(items, dismissedIds)),
+    [hasIndex, isLoading, items, dismissedIds],
+  );
 
   const byId = useMemo(() => new Map((items || []).map((item) => [item.id, item])), [items]);
 
@@ -85,11 +101,11 @@ const FileExplorer = ({
     const pdfs = (items || []).filter((item) => item.type !== 'FOLDER' && String(item.name).toLowerCase().endsWith('.pdf'));
     if (needle) {
       return pdfs
-        .filter((file) => `${file.name} ${file.path}`.toLowerCase().includes(needle))
+        .filter((file) => fileMatchesSearch(file, needle, lookupDescription, indexMap))
         .sort(byName);
     }
     return pdfs.filter((file) => isChildOf(file, currentFolderId, byId, rootFolderId)).sort(byName);
-  }, [items, currentFolderId, needle, byId, rootFolderId]);
+  }, [items, currentFolderId, needle, byId, rootFolderId, lookupDescription, indexMap]);
 
   const pdfCount = (items || []).filter((item) => item.type !== 'FOLDER' && String(item.name).toLowerCase().endsWith('.pdf')).length;
 
@@ -122,6 +138,32 @@ const FileExplorer = ({
           </div>
         </div>
 
+        {indexCandidate ? (
+          <div className="alert alert-info d-flex flex-wrap align-items-start justify-content-between gap-3" role="alert">
+            <p className="mb-0 min-w-0">
+              Vond &lsquo;{indexCandidate.name}&rsquo;. Wil je dit instellen als de tekening-index voor dit project?
+            </p>
+            <div className="d-flex gap-2 flex-shrink-0">
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => onDismissIndex?.(indexCandidate)}
+                disabled={isIndexing}
+              >
+                Negeren
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => onIndexFile?.(indexCandidate)}
+                disabled={isIndexing}
+              >
+                {isIndexing ? 'Indexeren…' : 'Indexeren'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="d-flex flex-wrap align-items-center gap-3 mb-3">
           <div className="flex-grow-1 min-w-0">
             <BreadcrumbNav
@@ -150,7 +192,7 @@ const FileExplorer = ({
             id="explorer-search"
             type="search"
             className="form-control form-control-sm file-filter"
-            placeholder="Search all PDFs"
+            placeholder="Search names or descriptions"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -177,7 +219,7 @@ const FileExplorer = ({
             title={needle ? 'No matching PDFs' : 'No PDFs in this folder'}
             body={
               needle
-                ? 'Try another name, or clear the search to browse folders.'
+                ? 'Try another name or description, or clear the search to browse folders.'
                 : 'Open a subfolder, or upload drawing PDFs to this project.'
             }
           />
@@ -203,23 +245,29 @@ const FileExplorer = ({
                 </button>
               </li>
             ))}
-            {files.map((file) => (
-              <li key={file.id} className="list-group-item px-0">
-                <button
-                  type="button"
-                  className="btn btn-link text-decoration-none w-100 text-start d-flex align-items-center gap-2 px-1 py-2"
-                  onClick={() => onSelectFile(file)}
-                >
-                  <ModusIcon name="file-pdf" size="20px" extraClasses="text-danger flex-shrink-0" />
-                  <span className="min-w-0 flex-grow-1">
-                    <span className="d-block text-truncate fw-semibold">{file.name}</span>
-                    <span className="d-block small text-muted text-truncate">
-                      {[needle ? file.path : '', formatBytes(file.size)].filter(Boolean).join(' · ')}
+            {files.map((file) => {
+              const description = descriptionForFile(file, lookupDescription);
+              return (
+                <li key={file.id} className="list-group-item px-0">
+                  <button
+                    type="button"
+                    className="btn btn-link text-decoration-none w-100 text-start d-flex align-items-center gap-2 px-1 py-2"
+                    onClick={() => onSelectFile(file)}
+                  >
+                    <ModusIcon name="file-pdf" size="20px" extraClasses="text-danger flex-shrink-0" />
+                    <span className="min-w-0 flex-grow-1">
+                      <span className="d-block text-truncate fw-semibold">{file.name}</span>
+                      {description ? (
+                        <span className="d-block small text-muted text-truncate">{description}</span>
+                      ) : null}
+                      <span className="d-block small text-muted text-truncate">
+                        {[needle ? file.path : '', formatBytes(file.size)].filter(Boolean).join(' · ')}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              </li>
-            ))}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         ) : null}
 

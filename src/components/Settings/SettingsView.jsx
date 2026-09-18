@@ -4,7 +4,15 @@ import { DEFAULT_CODE_REGEX, normalizeRegexSource } from '../../utils/drawingCod
 import { Logger } from '../../utils/logger';
 import { APP_NAME, APP_VERSION } from '../../appInfo';
 
-const SettingsView = ({ settings, updateSetting, showToast, currentProject }) => {
+const SettingsView = ({
+  settings,
+  updateSetting,
+  showToast,
+  currentProject,
+  indexSourceName = '',
+  indexCount = 0,
+  onClearIndex,
+}) => {
   const [regexDraft, setRegexDraft] = useState(settings.codeRegex);
 
   const handleSaveRegex = () => {
@@ -61,7 +69,7 @@ const SettingsView = ({ settings, updateSetting, showToast, currentProject }) =>
             spellCheck={false}
           />
           <div className="form-text">
-            Default matches DET-01, DETAIL-12, ST-102, and D-3, with optional space or dot separators.
+            Default matches DET-01, ST-102, UO101, UO.300, and D-3, with optional space or dot separators.
             Matching is case-insensitive. You can paste `/pattern/gi`; the slashes are stripped.
           </div>
         </div>
@@ -101,6 +109,37 @@ const SettingsView = ({ settings, updateSetting, showToast, currentProject }) =>
             Show the hotspot list beside the drawing
           </label>
         </div>
+      </SectionCard>
+
+      <SectionCard
+        title="Drawing index"
+        description="A project drawing list maps codes such as UO101 to titles used in search and hotspot tooltips."
+      >
+        {indexCount > 0 ? (
+          <>
+            <p className="mb-1">
+              {indexCount} drawing{indexCount === 1 ? '' : 's'} indexed
+              {indexSourceName ? ` from ${indexSourceName}` : ''}.
+            </p>
+            <p className="small text-muted mb-0">Stored in this browser for the active project.</p>
+            <div>
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => {
+                  onClearIndex?.();
+                  showToast('Drawing index cleared.', 'info');
+                }}
+              >
+                Clear index
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="text-muted mb-0">
+            When a PDF named like a drawing list, register, or index is found, Plan Linker asks to index it.
+          </p>
+        )}
       </SectionCard>
 
       <SectionCard title="Diagnostics" description={`${APP_NAME} v${APP_VERSION}`}>

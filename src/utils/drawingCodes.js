@@ -1,5 +1,5 @@
-/** Default AECO drawing-code patterns: DET-01, DETAIL-12, ST-102, D-3. */
-export const DEFAULT_CODE_REGEX = String.raw`(?:DET(?:AIL)?|ST|D)[-./\s]?\d+`;
+/** Default AECO drawing-code patterns: DET-01, ST-102, UO101, UO.300, D-3. */
+export const DEFAULT_CODE_REGEX = String.raw`(?:DET(?:AIL)?|ST|D|[A-Z]{2,4})[-./\s]?\d+`;
 
 const UNICODE_HYPHEN = /[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g;
 
@@ -211,7 +211,7 @@ const rectsForMatch = (map, start, length, viewport) => {
   );
 };
 
-const normalizeCode = (raw) => {
+export const normalizeDrawingCode = (raw) => {
   const upper = String(raw)
     .toUpperCase()
     .replace(UNICODE_HYPHEN, '-')
@@ -219,6 +219,8 @@ const normalizeCode = (raw) => {
     .replace(/-+/g, '-');
   return upper.replace(/^([A-Z]+)(\d+)/, '$1-$2').replace(/^-|-$/g, '');
 };
+
+const normalizeCode = normalizeDrawingCode;
 
 const pushHotspot = (hotspots, { code, pageNumber, rect, keyParts }) => {
   const normalized = normalizeCode(code);

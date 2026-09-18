@@ -37,6 +37,7 @@ const PDFViewer = ({
   isBusy,
   busyLabel,
   extraToolbar,
+  lookupDescription,
 }) => {
   const stageRef = useRef(null);
   const { pdf, pageCount, isLoading, error } = usePDF(source, sourceKey);
@@ -169,7 +170,13 @@ const PDFViewer = ({
 
       <div className="viewer-body d-flex flex-grow-1 min-h-0">
         {showPanel ? (
-          <HotspotPanel hotspots={hotspots} scan={scan} onSelect={onHotspotClick} disabled={isBusy} />
+          <HotspotPanel
+            hotspots={hotspots}
+            scan={scan}
+            onSelect={onHotspotClick}
+            disabled={isBusy}
+            lookupDescription={lookupDescription}
+          />
         ) : null}
 
         <div className="viewer-stage flex-grow-1 min-w-0 min-h-0" ref={stageRef}>
@@ -197,6 +204,7 @@ const PDFViewer = ({
               onSelectHotspot={onHotspotClick}
               isBusy={isBusy}
               busyLabel={busyLabel}
+              lookupDescription={lookupDescription}
             />
           ) : null}
         </div>
