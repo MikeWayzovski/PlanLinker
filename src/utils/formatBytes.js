@@ -28,3 +28,10 @@ export const projectMetricsFromItems = (items) => {
     totalSize: files.reduce((sum, file) => sum + (Number(file.size) || 0), 0),
   };
 };
+
+export const formatShortDate = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+};

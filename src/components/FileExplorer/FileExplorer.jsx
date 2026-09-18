@@ -7,7 +7,7 @@ import BreadcrumbNav from './BreadcrumbNav';
 import DrawingIndexStatus from './DrawingIndexStatus';
 import ScannedPdfAlert from './ScannedPdfAlert';
 import { APP_NAME, APP_VERSION } from '../../appInfo';
-import { formatBytes } from '../../utils/formatBytes';
+import { formatBytes, formatShortDate } from '../../utils/formatBytes';
 import { Logger } from '../../utils/logger';
 import {
   descriptionForFile,
@@ -25,18 +25,29 @@ const isChildOf = (item, folderId, byId, rootFolderId) => {
   return parentMissing && folderId === rootFolderId;
 };
 
-const FileThumb = ({ file, getToken }) => (
+const FileThumb = ({ file, getToken, folder = false }) => (
   <span className="file-thumb-wrap">
-    <AuthImage
-      key={file?.thumbnailUrl || file?.id || 'pdf'}
-      src={file?.thumbnailUrl}
-      alt=""
-      className="file-thumb"
-      getToken={getToken}
-      fallback={<ModusIcon name="file-pdf" size="20px" extraClasses="text-danger" />}
-    />
+    {folder ? (
+      <ModusIcon name="folder-simple" size="20px" extraClasses="text-primary" />
+    ) : (
+      <AuthImage
+        key={file?.thumbnailUrl || file?.id || 'pdf'}
+        src={file?.thumbnailUrl}
+        alt=""
+        className="file-thumb"
+        getToken={getToken}
+        fallback={<ModusIcon name="file-pdf" size="20px" extraClasses="text-danger" />}
+      />
+    )}
   </span>
 );
+
+const activateRow = (event, action) => {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    action();
+  }
+};
 
 const FileExplorer = ({
   projectName,
@@ -274,49 +285,97 @@ const FileExplorer = ({
         ) : null}
 
         {!isLoading && !error && (folders.length > 0 || files.length > 0) ? (
-          <ul className="list-group list-group-flush file-list">
-            {folders.map((folder) => (
-              <li key={folder.id} className="list-group-item px-0">
-                <button
-                  type="button"
-                  className="btn btn-link text-decoration-none w-100 text-start d-flex align-items-center gap-2 px-1 py-2"
-                  onClick={() => {
-                    setQuery('');
-                    setFolderId(folder.id);
-                  }}
-                >
-                  <ModusIcon name="folder-simple" size="20px" extraClasses="text-primary flex-shrink-0" />
-                  <span className="min-w-0">
-                    <span className="d-block text-truncate fw-semibold">{folder.name}</span>
-                    <span className="d-block small text-muted">Folder</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-            {files.map((file) => {
-              const description = descriptionForFile(file, lookupDescription);
-              return (
-                <li key={file.id} className="list-group-item px-0">
-                  <button
-                    type="button"
-                    className="btn btn-link text-decoration-none w-100 text-start d-flex align-items-center gap-2 px-1 py-2"
-                    onClick={() => handleFileClick(file)}
+          <div className="file-list">
+            <table className="table table-hover align-middle file-table">
+              <caption className="visually-hidden">Project drawings</caption>
+              <colgroup>
+                <col className="file-table-col-thumb" />
+                <col className="file-table-col-name" />
+                <col className="file-table-col-meta" />
+                <col className="file-table-col-action" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th scope="col" className="file-table-thumb">
+                    <span className="visually-hidden">Preview</span>
+                  </th>
+                  <th scope="col">Name</th>
+                  <th scope="col" className="file-table-meta">
+                    Size
+                  </th>
+                  <th scope="col" className="file-table-action">
+                    <span className="visually-hidden">Open</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {folders.map((folder) => (
+                  <tr
+                    key={folder.id}
+                    className="file-table-row"
+                    tabIndex={0}
+                    aria-label={`Open folder ${folder.name}`}
+                    onClick={() => {
+                      setQuery('');
+                      setFolderId(folder.id);
+                    }}
+                    onKeyDown={(event) =>
+                      activateRow(event, () => {
+                        setQuery('');
+                        setFolderId(folder.id);
+                      })
+                    }
                   >
-                    <FileThumb file={file} getToken={getToken} />
-                    <span className="min-w-0 flex-grow-1">
-                      <span className="d-block text-truncate fw-semibold">{file.name}</span>
-                      {description ? (
-                        <span className="d-block small text-muted text-truncate">{description}</span>
-                      ) : null}
-                      <span className="d-block small text-muted text-truncate">
-                        {[needle ? file.path : '', formatBytes(file.size)].filter(Boolean).join(' · ')}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                    <td className="file-table-thumb">
+                      <FileThumb folder />
+                    </td>
+                    <td className="file-table-info">
+                      <div className="file-table-name">{folder.name}</div>
+                      <div className="file-table-desc small">Folder</div>
+                    </td>
+                    <td className="file-table-meta">
+                      <span className="visually-hidden">Folder</span>
+                    </td>
+                    <td className="file-table-action">
+                      <ModusIcon name="caret-right" size="16px" extraClasses="text-muted" />
+                    </td>
+                  </tr>
+                ))}
+                {files.map((file) => {
+                  const description = descriptionForFile(file, lookupDescription);
+                  const sizeLabel = formatBytes(file.size);
+                  const modifiedLabel = formatShortDate(file.modifiedOn);
+                  const openLabel = pickingIndex ? `Use ${file.name} as drawing index` : `Open ${file.name}`;
+                  return (
+                    <tr
+                      key={file.id}
+                      className="file-table-row"
+                      tabIndex={0}
+                      aria-label={openLabel}
+                      onClick={() => handleFileClick(file)}
+                      onKeyDown={(event) => activateRow(event, () => handleFileClick(file))}
+                    >
+                      <td className="file-table-thumb">
+                        <FileThumb file={file} getToken={getToken} />
+                      </td>
+                      <td className="file-table-info">
+                        <div className="file-table-name">{file.name}</div>
+                        {description ? <div className="file-table-desc small">{description}</div> : null}
+                        {needle && file.path ? <div className="file-table-desc small">{file.path}</div> : null}
+                      </td>
+                      <td className="file-table-meta">
+                        <div>{sizeLabel || '—'}</div>
+                        {modifiedLabel ? <div className="small">{modifiedLabel}</div> : null}
+                      </td>
+                      <td className="file-table-action">
+                        <ModusIcon name="caret-right" size="16px" extraClasses="text-muted" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         ) : null}
 
         <footer className="small text-muted mt-3 mb-0">

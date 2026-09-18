@@ -103,6 +103,80 @@ i[class*=' modus-icon-'] {
 .file-list {
   max-height: min(70vh, 40rem);
   overflow: auto;
+  width: 100%;
+}
+
+.file-table {
+  width: 100%;
+  table-layout: fixed;
+  margin-bottom: 0;
+}
+
+.file-table thead th {
+  background-color: var(--modus-wc-color-base-100, #f5f5f8);
+  color: var(--modus-wc-base-content-low-contrast, #464b52);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  border-color: var(--bs-border-color, rgba(70, 75, 82, 0.16));
+}
+
+.file-table tbody td {
+  border-color: var(--bs-border-color, rgba(70, 75, 82, 0.16));
+  overflow: hidden;
+}
+
+.file-table-col-thumb {
+  width: 64px;
+}
+
+.file-table-col-name {
+  width: auto;
+}
+
+.file-table-col-meta {
+  width: 6.5rem;
+}
+
+.file-table-col-action {
+  width: 2.5rem;
+}
+
+.file-table-row {
+  cursor: pointer;
+}
+
+.file-table-thumb {
+  width: 48px;
+}
+
+.file-table-info {
+  min-width: 0;
+}
+
+.file-table-name,
+.file-table-desc {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-table-name {
+  font-weight: 600;
+}
+
+.file-table-desc {
+  color: var(--modus-wc-base-content-low-contrast, #464b52);
+}
+
+.file-table-meta {
+  text-align: end;
+  white-space: nowrap;
+  color: var(--modus-wc-base-content-low-contrast, #464b52);
+}
+
+.file-table-action {
+  text-align: end;
+  width: 2.5rem;
 }
 
 .viewer-parked {
@@ -300,9 +374,10 @@ i[class*=' modus-icon-'] {
 }
 
 .file-thumb-wrap {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 0.25rem;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  border-radius: 4px;
 }
 
 .project-thumb-wrap {
