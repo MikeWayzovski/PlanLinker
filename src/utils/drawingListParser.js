@@ -15,6 +15,16 @@ export const LIST_CODE_PATTERN = /(?:DET(?:AIL)?|ST|D|[A-Z]{2,4})[-./\s]?\d+[A-Z
 
 export const INDEX_FILE_PATTERN = /(lijst|register|drawing\s*list|index)/i;
 
+export const ERR_SCANNED_PDF_NO_TEXT = 'ERR_SCANNED_PDF_NO_TEXT';
+
+export class DrawingListParseError extends Error {
+  constructor(code, message = code) {
+    super(message);
+    this.name = 'DrawingListParseError';
+    this.code = code;
+  }
+}
+
 const HEADER_OR_JUNK = /^(nr|no|nummer|code|tekening|tekeningnr|tekeningnummer|drawing|omschrijving|description|titel|title|blad|sheet|rev|revisie|datum|date|schaal|scale)$/i;
 
 const indexCandidateScore = (name) => {
@@ -159,6 +169,9 @@ const parseRowIntoMap = (row, map) => {
   }
 };
 
+const collectTextItems = (items) =>
+  (items || []).filter((item) => item && typeof item.str === 'string' && String(item.str).trim());
+
 /**
  * Parse a drawing-list PDF into `{ drawingCode: description }` using the text layer.
  */
@@ -170,16 +183,29 @@ export const parseDrawingListPDF = async (pdfDocument) => {
       Logger.warn('Could not parse table structures from drawing list: PDF has no pages');
       return map;
     }
+
+    let totalTextItems = 0;
     for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
       const page = await pdfDocument.getPage(pageNumber);
       const content = await page.getTextContent({ disableNormalization: false });
-      clusterRowsByY(content?.items || []).forEach((row) => parseRowIntoMap(row, map));
+      const textItems = collectTextItems(content?.items || []);
+      if (textItems.length === 0) {
+        Logger.warn('PDF page has 0 text items. Scanned image or raster PDF detected.');
+      }
+      totalTextItems += textItems.length;
+      clusterRowsByY(textItems).forEach((row) => parseRowIntoMap(row, map));
     }
+
+    if (totalTextItems === 0) {
+      throw new DrawingListParseError(ERR_SCANNED_PDF_NO_TEXT, ERR_SCANNED_PDF_NO_TEXT);
+    }
+
     if (Object.keys(map).length === 0) {
       Logger.warn('Could not parse table structures from drawing list: no code/description rows found');
     }
     return map;
   } catch (error) {
+    if (error?.code === ERR_SCANNED_PDF_NO_TEXT) throw error;
     Logger.warn(`Could not parse table structures from drawing list: ${error.message}`);
     throw error;
   }
@@ -227,4 +253,74 @@ export const fileMatchesSearch = (file, needle, lookupDescription, indexMap) => 
     if (!String(label).toLowerCase().includes(query)) return false;
     return fileContainsCode(file, code);
   });
+};
+
+export const uniqueIndexCount = (map) => new Set(Object.values(map || {})).size;
+
+const HEADER_ROW = /tekeningnummer|tekeningnr|omschrijving|description|drawing\s*no|drawing\s*code|^code$|^nummer$/i;
+
+const detectDelimiter = (line) => {
+  const counts = [
+    { delim: ';', count: (line.match(/;/g) || []).length },
+    { delim: '\t', count: (line.match(/\t/g) || []).length },
+    { delim: ',', count: (line.match(/,/g) || []).length },
+  ].sort((a, b) => b.count - a.count);
+  return counts[0].count > 0 ? counts[0].delim : ';';
+};
+
+const splitDelimited = (line, delim) => {
+  const cells = [];
+  let current = '';
+  let inQuotes = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === delim && !inQuotes) {
+      cells.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
+};
+
+/**
+ * Parse pasted or uploaded `Tekeningnummer;Omschrijving` (CSV, TSV, or Excel paste).
+ */
+export const parseIndexTableText = (raw) => {
+  const text = String(raw || '')
+    .replace(/^\uFEFF/, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
+  const lines = text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const map = {};
+  if (!lines.length) return map;
+
+  const delim = detectDelimiter(lines[0]);
+  let start = 0;
+  const firstCells = splitDelimited(lines[0], delim);
+  const headerHint = firstCells.slice(0, 2).join(' ');
+  if (HEADER_OR_JUNK.test(firstCells[0] || '') || HEADER_ROW.test(headerHint)) {
+    start = 1;
+  }
+
+  for (let index = start; index < lines.length; index += 1) {
+    const cells = splitDelimited(lines[index], delim);
+    const code = cells[0] || '';
+    const description = cells.slice(1).join(' ').replace(/\s+/g, ' ').trim();
+    if (!code || !description) continue;
+    addEntry(map, code, description);
+  }
+  return map;
 };

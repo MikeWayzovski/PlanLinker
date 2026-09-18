@@ -3,7 +3,9 @@ import SectionCard from '../Modus/SectionCard';
 import AuthImage from '../Modus/AuthImage';
 import ModusIcon from '../Modus/ModusIcon';
 import DrawingIndexStatus from '../FileExplorer/DrawingIndexStatus';
+import ScannedPdfAlert from '../FileExplorer/ScannedPdfAlert';
 import { DEFAULT_CODE_REGEX, normalizeRegexSource } from '../../utils/drawingCodes';
+import { parseIndexTableText, uniqueIndexCount } from '../../utils/drawingListParser';
 import { formatProjectSize } from '../../utils/formatBytes';
 import { Logger } from '../../utils/logger';
 import { APP_NAME, APP_VERSION } from '../../appInfo';
@@ -20,10 +22,16 @@ const SettingsView = ({
   indexSourceName = '',
   indexCount = 0,
   isIndexing = false,
+  scannedFileName = '',
   onChangeIndex,
   onClearIndex,
+  onApplyManualIndex,
+  onDismissScanned,
 }) => {
   const [regexDraft, setRegexDraft] = useState(settings.codeRegex);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const showManual = manualOpen || Boolean(scannedFileName);
 
   const handleSaveRegex = () => {
     try {
@@ -44,6 +52,41 @@ const SettingsView = ({
   const handleClear = () => {
     Logger.clearLogs();
     showToast('Diagnostic log cleared.', 'success');
+  };
+
+  const applyManualText = (text, sourceName) => {
+    const map = parseIndexTableText(text);
+    const count = uniqueIndexCount(map);
+    if (!count) {
+      showToast('No drawing codes were found in that table. Use Tekeningnummer;Omschrijving.', 'warning');
+      return;
+    }
+    onApplyManualIndex?.(map, sourceName);
+    setPasteText('');
+    setManualOpen(false);
+  };
+
+  const handleUpload = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const lower = String(file.name || '').toLowerCase();
+    if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+      setManualOpen(true);
+      showToast('Save the Excel sheet as CSV, or paste Tekeningnummer;Omschrijving here.', 'warning');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || '');
+      setPasteText(text);
+      setManualOpen(true);
+      applyManualText(text, file.name);
+    };
+    reader.onerror = () => {
+      showToast('That file could not be read.', 'danger');
+    };
+    reader.readAsText(file);
   };
 
   return (
@@ -140,6 +183,7 @@ const SettingsView = ({
         title="Drawing index"
         description="A project drawing list maps codes such as UO101 to titles used in search and hotspot tooltips."
       >
+        <ScannedPdfAlert fileName={scannedFileName} onDismiss={onDismissScanned} />
         <DrawingIndexStatus
           sourceFileName={indexSourceName}
           indexCount={indexCount}
@@ -148,6 +192,68 @@ const SettingsView = ({
           onChangeIndex={onChangeIndex}
           onClearIndex={onClearIndex}
         />
+        <div>
+          <button
+            type="button"
+            className="btn btn-outline-secondary btn-sm"
+            onClick={() => setManualOpen((open) => !open)}
+          >
+            Handmatige Index Upload / Plakken
+          </button>
+        </div>
+        {showManual ? (
+          <div className="d-flex flex-column gap-3">
+            <div>
+              <label className="form-label" htmlFor="manual-index-file">
+                Upload CSV
+              </label>
+              <input
+                id="manual-index-file"
+                type="file"
+                className="form-control form-control-sm"
+                accept=".csv,.tsv,.txt,.xlsx,.xls,text/csv,text/tab-separated-values"
+                onChange={handleUpload}
+              />
+              <div className="form-text">
+                Columns: Tekeningnummer;Omschrijving. Excel sheets can be pasted or saved as CSV.
+              </div>
+            </div>
+            <div>
+              <label className="form-label" htmlFor="manual-index-paste">
+                Paste index
+              </label>
+              <textarea
+                id="manual-index-paste"
+                className="form-control"
+                rows={6}
+                value={pasteText}
+                onChange={(event) => setPasteText(event.target.value)}
+                placeholder={'UO101;Plattegrond begane grond\nUO.300;Doorsnede A-A deel 1'}
+                spellCheck={false}
+              />
+            </div>
+            <div className="d-flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => {
+                  setPasteText('');
+                  setManualOpen(false);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => applyManualText(pasteText, 'Handmatige index')}
+                disabled={!String(pasteText || '').trim()}
+              >
+                Save index
+              </button>
+            </div>
+          </div>
+        ) : null}
       </SectionCard>
 
       <SectionCard title="Diagnostics" description={`${APP_NAME} v${APP_VERSION}`}>

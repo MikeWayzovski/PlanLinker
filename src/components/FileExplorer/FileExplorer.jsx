@@ -5,6 +5,7 @@ import EmptyState from '../Modus/EmptyState';
 import AuthImage from '../Modus/AuthImage';
 import BreadcrumbNav from './BreadcrumbNav';
 import DrawingIndexStatus from './DrawingIndexStatus';
+import ScannedPdfAlert from './ScannedPdfAlert';
 import { APP_NAME, APP_VERSION } from '../../appInfo';
 import { formatBytes } from '../../utils/formatBytes';
 import { Logger } from '../../utils/logger';
@@ -61,6 +62,9 @@ const FileExplorer = ({
   onChangeIndex,
   onClearIndex,
   getToken,
+  scannedFileName = '',
+  onOpenManualIndex,
+  onDismissScanned,
 }) => {
   const [folderId, setFolderId] = useState(null);
   const [query, setQuery] = useState('');
@@ -168,6 +172,12 @@ const FileExplorer = ({
           bordered
           onChangeIndex={onChangeIndex}
           onClearIndex={onClearIndex}
+        />
+
+        <ScannedPdfAlert
+          fileName={scannedFileName}
+          onManualIndex={onOpenManualIndex}
+          onDismiss={onDismissScanned}
         />
 
         {pickingIndex ? (

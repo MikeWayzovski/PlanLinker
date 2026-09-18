@@ -14,7 +14,7 @@ import { useToast } from './hooks/useToast';
 import { useSettings } from './hooks/useSettings';
 import { useDrawingSearch } from './hooks/useDrawingSearch';
 import { useProjectIndex } from './hooks/useProjectIndex';
-import { parseDrawingListBlob } from './utils/drawingListParser';
+import { parseDrawingListBlob, ERR_SCANNED_PDF_NO_TEXT, uniqueIndexCount } from './utils/drawingListParser';
 import { useWorkspaceApi, SETTINGS_EVENT, EXPLORER_EVENT, REFRESH_FILES_EVENT } from './utils/workspaceBridge';
 import { resolveAccessToken, isTokenUnavailable, clearCachedToken } from './utils/accessToken';
 import { isTidConfigured } from './api/client';
@@ -50,6 +50,7 @@ function App() {
   const [lookupLabel, setLookupLabel] = useState('');
   const [pickingIndex, setPickingIndex] = useState(false);
   const [projectDetails, setProjectDetails] = useState(null);
+  const [scannedIndexError, setScannedIndexError] = useState(null);
 
   const hasAccess = isAuthenticated || (isEmbedded && Boolean(embeddedToken));
   const currentProject = embeddedProject;
@@ -256,7 +257,7 @@ function App() {
       try {
         const blob = await download(file);
         const map = await parseDrawingListBlob(blob);
-        const count = new Set(Object.values(map)).size;
+        const count = uniqueIndexCount(map);
         if (!count) {
           Logger.warn('Could not parse table structures from drawing list: no drawing codes found');
           showToast('No drawing codes were found in that PDF.', 'warning');
@@ -264,9 +265,15 @@ function App() {
         }
         setProjectIndex(map, file.name, file.id);
         setPickingIndex(false);
+        setScannedIndexError(null);
         Logger.info(`Successfully indexed ${count} drawing codes from ${file.name}`);
         showToast(`Indexed ${count} drawing${count === 1 ? '' : 's'} from ${file.name}.`, 'success');
       } catch (error) {
+        if (error?.code === ERR_SCANNED_PDF_NO_TEXT) {
+          setScannedIndexError({ fileName: file.name });
+          setPickingIndex(false);
+          return;
+        }
         Logger.warn(`Could not parse table structures from drawing list: ${error.message}`);
         reportError(error, `Could not index ${file.name}.`);
       } finally {
@@ -298,8 +305,30 @@ function App() {
   const handleClearIndex = useCallback(() => {
     clearIndex();
     setPickingIndex(false);
+    setScannedIndexError(null);
     showToast('Drawing index cleared.', 'info');
   }, [clearIndex, showToast]);
+
+  const handleDismissScanned = useCallback(() => {
+    setScannedIndexError(null);
+  }, []);
+
+  const handleOpenManualIndex = useCallback(() => {
+    setSettingsOpen(true);
+    setExplorerOpen(true);
+  }, []);
+
+  const handleApplyManualIndex = useCallback(
+    (map, sourceFileName) => {
+      const count = uniqueIndexCount(map);
+      setProjectIndex(map, sourceFileName || 'Handmatige index');
+      setScannedIndexError(null);
+      setPickingIndex(false);
+      Logger.info(`Successfully indexed ${count} drawing codes from ${sourceFileName || 'Handmatige index'}`);
+      showToast(`Indexed ${count} drawing${count === 1 ? '' : 's'} from ${sourceFileName || 'manual index'}.`, 'success');
+    },
+    [setProjectIndex, showToast],
+  );
 
   const handleHotspot = useCallback(
     async (spot) => {
@@ -377,6 +406,7 @@ function App() {
     // Reset picker when the Connect project changes.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPickingIndex(false);
+    setScannedIndexError(null);
   }, [projectId]);
 
   const callbackPath = window.location.pathname.replace(/\/$/, '') || '/';
@@ -436,6 +466,9 @@ function App() {
               isIndexing={isIndexing}
               onChangeIndex={handleStartIndexPicker}
               onClearIndex={handleClearIndex}
+              scannedFileName={scannedIndexError?.fileName || ''}
+              onApplyManualIndex={handleApplyManualIndex}
+              onDismissScanned={handleDismissScanned}
             />
           </div>
         </main>
@@ -499,6 +532,9 @@ function App() {
             onChangeIndex={handleChangeIndex}
             onClearIndex={handleClearIndex}
             getToken={getToken}
+            scannedFileName={scannedIndexError?.fileName || ''}
+            onOpenManualIndex={handleOpenManualIndex}
+            onDismissScanned={handleDismissScanned}
           />
         </div>
       </main>
