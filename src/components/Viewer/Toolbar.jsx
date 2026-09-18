@@ -1,168 +1,162 @@
 import React from 'react';
-import ModusIcon from '../Modus/ModusIcon';
+import {
+  ModusWcButton,
+  ModusWcDivider,
+  ModusWcIcon,
+  ModusWcSwitch,
+  ModusWcToolbar,
+  ModusWcTypography,
+} from '@trimble-oss/moduswebcomponents-react';
+import { readInputChecked } from '../../utils/modusFormEvents';
 
-const ToolButton = ({
-  label,
-  title,
-  icon,
-  onClick,
-  disabled,
-  pressed,
-  extraClasses = '',
-}) => (
-  <button
-    type="button"
-    className={`btn btn-sm btn-icon-only ${pressed ? 'btn-primary' : 'btn-outline-secondary'} ${extraClasses}`.trim()}
-    onClick={onClick}
-    disabled={disabled}
+const IconTool = ({ label, icon, onClick, disabled, pressed, customClass = '' }) => (
+  <ModusWcButton
+    variant="borderless"
+    color="tertiary"
+    shape="square"
+    size="sm"
     aria-label={label}
-    aria-pressed={pressed}
-    title={title || label}
+    buttonAriaLabel={label}
+    disabled={disabled}
+    pressed={pressed}
+    customClass={`${pressed ? 'is-tool-active' : ''} ${customClass}`.trim()}
+    onButtonClick={onClick}
   >
-    <ModusIcon name={icon} size="16px" />
-  </button>
+    <ModusWcIcon name={icon} decorative size="sm" />
+  </ModusWcButton>
 );
 
-const Toolbar = ({
-  title,
-  canGoBack,
-  onBack,
-  onBrowseFiles,
+export const LeftToolbar = ({ panelOpen, onTogglePanel, onToggleProperties, onBrowseFiles }) => (
+  <div className="template-2d-viewer-toolbar template-2d-viewer-left-toolbar-wrapper">
+    <ModusWcToolbar
+      customClass="template-2d-viewer-left-toolbar"
+      aria-label="Panel tools"
+    >
+      <div slot="start" className="template-2d-viewer-left-tools">
+        <IconTool
+          label="Layer management"
+          icon="layer"
+          pressed={panelOpen}
+          customClass={panelOpen ? 'is-tool-active' : ''}
+          onClick={onTogglePanel}
+        />
+        <IconTool label="Brush" icon="brush" onClick={onToggleProperties} />
+        <IconTool label="Share" icon="share" onClick={onBrowseFiles} />
+      </div>
+    </ModusWcToolbar>
+  </div>
+);
+
+export const TopToolbar = ({
   pageNumber,
   pageCount,
   onPageChange,
-  scaleLabel,
-  onZoomIn,
-  onZoomOut,
-  fitMode,
-  onFitWidth,
-  onFitPage,
+  canGoBack,
+  onBack,
   tool,
   onToolChange,
-  panelOpen,
-  onTogglePanel,
-  settingsOpen,
-  onToggleSettings,
+  onZoomIn,
+  fitMode,
+  onFitPage,
+  showHotspots,
+  onToggleHotspots,
+  onBrowseFiles,
   disabled,
 }) => (
-  <header className="navbar navbar-expand viewer-toolbar flex-shrink-0 px-2 px-md-3 py-2">
-    <div className="d-flex align-items-center gap-2 min-w-0 me-2">
-      <ModusIcon name="file-pdf" size="22px" extraClasses="text-primary flex-shrink-0" />
-      <h1 className="h6 mb-0 text-truncate" title={title}>
-        {title || 'Plan Linker'}
-      </h1>
-    </div>
-
-    <div className="d-flex align-items-center gap-1 flex-wrap justify-content-end flex-grow-1">
-      <div className="btn-group" role="group" aria-label="Navigate">
-        <button
-          type="button"
-          className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
-          onClick={onBrowseFiles}
-        >
-          <ModusIcon name="folder-open" size="16px" />
-          <span className="d-none d-lg-inline">Browse files</span>
-        </button>
-        <button
-          type="button"
-          className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1"
-          onClick={onBack}
-          disabled={!canGoBack}
-        >
-          <ModusIcon name="arrow-left" size="16px" />
-          <span className="d-none d-xl-inline">Back</span>
-        </button>
-      </div>
-
-      <div className="vr mx-1 d-none d-md-block" />
-
-      <div className="btn-group" role="group" aria-label="Pointer tools">
-        <ToolButton
-          label="Select"
+  <div className="template-2d-viewer-toolbar template-2d-viewer-top-toolbar-wrapper">
+    <ModusWcToolbar customClass="template-2d-viewer-top-toolbar" aria-label="Editor tools">
+      <div slot="start" className="template-2d-viewer-top-tools">
+        <IconTool
+          label="Previous"
+          icon="chevron_left"
+          onClick={() => onPageChange(pageNumber - 1)}
+          disabled={disabled || pageNumber <= 1}
+        />
+        <ModusWcDivider orientation="vertical" customClass="template-2d-viewer-divider" />
+        <IconTool
+          label="Cursor"
           icon="cursor"
           pressed={tool === 'select'}
           onClick={() => onToolChange('select')}
           disabled={disabled}
         />
-        <ToolButton
+        <IconTool
           label="Pan"
-          icon="hand-grabbing"
+          icon="pan"
           pressed={tool === 'pan'}
           onClick={() => onToolChange('pan')}
           disabled={disabled}
         />
-      </div>
-
-      <div className="vr mx-1 d-none d-md-block" />
-
-      <div className="btn-group" role="group" aria-label="Zoom">
-        <ToolButton label="Zoom out" icon="minus" onClick={onZoomOut} disabled={disabled} />
-        <span className="small text-muted toolbar-scale-label align-self-center px-2">{scaleLabel}</span>
-        <ToolButton label="Zoom in" icon="plus" onClick={onZoomIn} disabled={disabled} />
-        <ToolButton
-          label="Fit to width"
-          icon="arrows-horizontal"
-          pressed={fitMode === 'width'}
-          onClick={onFitWidth}
-          disabled={disabled}
+        <IconTool label="Undo" icon="undo" onClick={onBack} disabled={!canGoBack} />
+        <IconTool
+          label="Redo"
+          icon="redo"
+          onClick={() => onPageChange(pageNumber + 1)}
+          disabled={disabled || pageNumber >= pageCount}
         />
-        <ToolButton
-          label="Fit to page"
-          icon="corners-out"
+        <IconTool label="Save disk" icon="save_disk" onClick={onBrowseFiles} />
+        <IconTool
+          label="View grid"
+          icon="view_grid"
           pressed={fitMode === 'page'}
           onClick={onFitPage}
           disabled={disabled}
         />
-      </div>
-
-      <div className="vr mx-1 d-none d-md-block" />
-
-      <div className="btn-group" role="group" aria-label="Page">
-        <ToolButton
-          label="Previous page"
-          icon="caret-left"
-          onClick={() => onPageChange(pageNumber - 1)}
-          disabled={disabled || pageNumber <= 1}
-        />
-        <label className="visually-hidden" htmlFor="page-select">
-          Page
-        </label>
-        <input
-          id="page-select"
-          type="number"
-          className="form-control form-control-sm toolbar-page-input"
-          min={1}
-          max={pageCount || 1}
-          value={pageNumber}
-          onChange={(event) => onPageChange(Number(event.target.value))}
+        <IconTool label="Add" icon="add" onClick={onZoomIn} disabled={disabled} />
+        <IconTool
+          label="Visibility on"
+          icon="visibility_on"
+          pressed={showHotspots}
+          onClick={() => onToggleHotspots(!showHotspots)}
           disabled={disabled}
-          aria-label="Current page"
         />
-        <span className="small text-muted align-self-center px-1">/ {pageCount || 0}</span>
-        <ToolButton
-          label="Next page"
-          icon="caret-right"
-          onClick={() => onPageChange(pageNumber + 1)}
-          disabled={disabled || pageNumber >= pageCount}
-        />
+        <div className="template-2d-viewer-visibility">
+          <ModusWcSwitch
+            size="sm"
+            value={showHotspots}
+            disabled={disabled}
+            onInputChange={(event) => onToggleHotspots(readInputChecked(event))}
+          />
+          <ModusWcTypography hierarchy="p" size="xs" label="ON" customClass="template-2d-viewer-muted" />
+        </div>
       </div>
-
-      <div className="vr mx-1 d-none d-md-block" />
-
-      <ToolButton
-        label="Layer management"
-        icon="stack"
-        pressed={panelOpen}
-        onClick={onTogglePanel}
-      />
-      <ToolButton
-        label="Settings"
-        icon="gear"
-        pressed={settingsOpen}
-        onClick={onToggleSettings}
-      />
-    </div>
-  </header>
+      <div slot="end" className="template-2d-viewer-top-end">
+        <ModusWcButton variant="outlined" color="primary" size="sm" onButtonClick={onBrowseFiles}>
+          Save
+        </ModusWcButton>
+      </div>
+    </ModusWcToolbar>
+  </div>
 );
 
-export default Toolbar;
+export const BottomToolbar = ({
+  onToggleSettings,
+  onFitPage,
+  fitMode,
+  onZoomIn,
+  onZoomOut,
+  onToggleProperties,
+  disabled,
+}) => (
+  <div className="template-2d-viewer-bottom-toolbar-outer">
+    <div className="template-2d-viewer-bottom-toolbar-wrapper">
+      <ModusWcToolbar customClass="template-2d-viewer-bottom-toolbar" aria-label="Editor controls">
+        <div slot="start" className="template-2d-viewer-bottom-tools">
+          <IconTool label="Settings" icon="settings" onClick={onToggleSettings} />
+          <IconTool
+            label="View grid"
+            icon="view_grid"
+            pressed={fitMode === 'page'}
+            customClass={fitMode === 'page' ? 'is-tool-active' : ''}
+            onClick={onFitPage}
+            disabled={disabled}
+          />
+          <IconTool label="Add" icon="add" onClick={onZoomIn} disabled={disabled} />
+          <IconTool label="Remove" icon="remove" onClick={onZoomOut} disabled={disabled} />
+          <IconTool label="Pencil" icon="pencil" disabled={disabled} />
+          <IconTool label="Brush" icon="brush" onClick={onToggleProperties} />
+        </div>
+      </ModusWcToolbar>
+    </div>
+  </div>
+);

@@ -1,4 +1,5 @@
 import React from 'react';
+import { ModusWcButton, ModusWcTypography } from '@trimble-oss/moduswebcomponents-react';
 import EmptyState from '../Modus/EmptyState';
 
 const HotspotPanel = ({ hotspots, scan, onSelect, disabled, lookupDescription }) => {
@@ -12,37 +13,43 @@ const HotspotPanel = ({ hotspots, scan, onSelect, disabled, lookupDescription })
       : 'Adjust the matching pattern in Settings if detail marks use a different format.';
 
   return (
-    <div className="hotspot-panel-section d-flex flex-column min-h-0 flex-grow-1">
-      <div className="px-3 py-2 border-bottom">
-        <h3 className="h6 mb-0">Hotspots</h3>
-        <p className="small text-muted mb-0">
-          {typeof itemCount === 'number'
+    <div className="hotspot-panel-section">
+      <ModusWcTypography
+        hierarchy="p"
+        size="xs"
+        label={
+          typeof itemCount === 'number'
             ? `${itemCount} text fragment${itemCount === 1 ? '' : 's'} scanned`
-            : 'Codes found on this page'}
-        </p>
-      </div>
+            : 'Codes found on this page'
+        }
+        customClass="template-2d-viewer-muted"
+      />
       <div className="hotspot-panel-list">
-        {hotspots.length === 0 ? (
+        <div hidden={hotspots.length > 0} aria-hidden={hotspots.length > 0}>
           <EmptyState icon="magnifying-glass" title={emptyTitle} body={emptyBody} />
-        ) : (
-          <ul className="list-group list-group-flush">
-            {hotspots.map((spot) => (
-              <li key={spot.key} className="list-group-item px-0">
-                <button
-                  type="button"
-                  className="btn btn-link text-decoration-none w-100 text-start px-3 py-2"
-                  onClick={() => onSelect(spot)}
+        </div>
+        <ul className="template-2d-viewer-hotspot-list" hidden={hotspots.length === 0} aria-hidden={hotspots.length === 0}>
+          {hotspots.map((spot) => {
+            const description = lookupDescription?.(spot.code) || '';
+            return (
+              <li key={spot.key} className="template-2d-viewer-layer-item">
+                <ModusWcButton
+                  variant="borderless"
+                  color="tertiary"
+                  size="sm"
+                  customClass="template-2d-viewer-hotspot-button"
                   disabled={disabled}
+                  onButtonClick={() => onSelect(spot)}
                 >
-                  <span className="fw-semibold d-block">{spot.code}</span>
-                  {lookupDescription?.(spot.code) ? (
-                    <span className="d-block small text-muted">{lookupDescription(spot.code)}</span>
-                  ) : null}
-                </button>
+                  <span className="template-2d-viewer-hotspot-copy">
+                    <span className="fw-semibold d-block">{spot.code}</span>
+                    {description ? <span className="d-block small text-muted">{description}</span> : null}
+                  </span>
+                </ModusWcButton>
               </li>
-            ))}
-          </ul>
-        )}
+            );
+          })}
+        </ul>
       </div>
     </div>
   );

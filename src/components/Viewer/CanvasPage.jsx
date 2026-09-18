@@ -13,6 +13,7 @@ const CanvasPage = ({
   codeRegex,
   onHotspots,
   onSelectHotspot,
+  onInspectHotspot,
   isBusy,
   busyLabel,
   lookupDescription,
@@ -131,6 +132,7 @@ const CanvasPage = ({
           canvasWidth={size.width}
           canvasHeight={size.height}
           onSelect={onSelectHotspot}
+          onInspect={onInspectHotspot}
           disabled={isBusy || interactionMode === 'pan'}
           lookupDescription={lookupDescription}
           visible={showHotspots}

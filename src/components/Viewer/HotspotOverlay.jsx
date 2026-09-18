@@ -5,6 +5,7 @@ const HotspotOverlay = ({
   canvasWidth,
   canvasHeight,
   onSelect,
+  onInspect,
   disabled,
   lookupDescription,
   visible = true,
@@ -25,6 +26,8 @@ const HotspotOverlay = ({
             title={label}
             data-tooltip={label}
             aria-label={description ? `Open drawing ${label}` : `Open drawing ${spot.code}`}
+            onMouseEnter={() => onInspect?.(spot)}
+            onFocus={() => onInspect?.(spot)}
             onClick={() => onSelect(spot)}
             style={{
               left: `${(spot.rect.left / canvasWidth) * 100}%`,

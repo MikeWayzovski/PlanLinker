@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { usePDF } from '../../hooks/usePDF';
-import Toolbar from './Toolbar';
+import { BottomToolbar, LeftToolbar, TopToolbar } from './Toolbar';
 import CanvasPage from './CanvasPage';
 import LayerPanel from './LayerPanel';
+import PropertiesPanel from './PropertiesPanel';
+import ViewerNavbar from './ViewerNavbar';
 import Spinner from '../Modus/Spinner';
 import EmptyState from '../Modus/EmptyState';
 
@@ -11,7 +13,7 @@ const WHEEL_ZOOM_OUT = 0.9;
 const BUTTON_ZOOM_STEP = 1.2;
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 4;
-const FIT_PADDING = 32;
+const FIT_PADDING = 88;
 
 const clampScale = (value) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number(value.toFixed(3))));
 
@@ -31,15 +33,12 @@ const PDFViewer = ({
   codeRegex,
   showPanel,
   onTogglePanel,
-  settingsOpen,
   onToggleSettings,
   onHotspotClick,
   isBusy,
   busyLabel,
   extraToolbar,
   lookupDescription,
-  indexSourceName = '',
-  indexCount = 0,
 }) => {
   const stageRef = useRef(null);
   const panRef = useRef({ active: false, x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
@@ -47,12 +46,29 @@ const PDFViewer = ({
   const [pageNumber, setPageNumber] = useState(1);
   const [scale, setScale] = useState(1);
   const [fitMode, setFitMode] = useState('width');
-  const [hotspots, setHotspots] = useState([]);
-  const [scan, setScan] = useState(null);
   const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
   const [tool, setTool] = useState('select');
-  const [showCanvas, setShowCanvas] = useState(true);
-  const [showHotspots, setShowHotspots] = useState(true);
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const [inspectSpot, setInspectSpot] = useState(null);
+  const [layerVisibility, setLayerVisibility] = useState({
+    background: true,
+    annotations: true,
+    shapes: true,
+    text: true,
+    guides: true,
+    grid: true,
+  });
+
+  const showCanvas = layerVisibility.background !== false;
+  const showHotspots = layerVisibility.annotations !== false;
+
+  const toggleLayer = (id) => {
+    setLayerVisibility((current) => ({ ...current, [id]: current[id] === false }));
+  };
+
+  const setShowHotspots = (value) => {
+    setLayerVisibility((current) => ({ ...current, annotations: Boolean(value) }));
+  };
 
   const zoomBy = useCallback((factor) => {
     setFitMode(null);
@@ -172,67 +188,24 @@ const PDFViewer = ({
       window.removeEventListener('resize', schedule);
       window.visualViewport?.removeEventListener('resize', schedule);
     };
-  }, [fitMode, pageSize.width, pageSize.height, sourceKey, showPanel]);
+  }, [fitMode, pageSize.width, pageSize.height, sourceKey, showPanel, propertiesOpen]);
 
   const handlePageChange = (value) => {
     if (!pageCount) return;
     const next = Math.min(pageCount, Math.max(1, Number(value) || 1));
     setPageNumber(next);
+    setInspectSpot(null);
   };
 
-  const handleHotspots = useCallback((spots, meta) => {
-    setHotspots(spots);
-    if (meta) setScan(meta);
-  }, []);
-
-  const scaleLabel = useMemo(() => `${Math.round(scale * 100)}%`, [scale]);
+  const handleHotspots = useCallback(() => {}, []);
   const toolsDisabled = !pageCount || Boolean(error);
 
   return (
-    <div className="viewer-shell d-flex flex-column min-h-0 flex-grow-1">
-      <Toolbar
-        title={title}
-        canGoBack={canGoBack}
-        onBack={onBack}
-        onBrowseFiles={onBrowseFiles}
-        pageNumber={pageNumber}
-        pageCount={pageCount}
-        onPageChange={handlePageChange}
-        scaleLabel={scaleLabel}
-        onZoomIn={() => zoomBy(BUTTON_ZOOM_STEP)}
-        onZoomOut={() => zoomBy(1 / BUTTON_ZOOM_STEP)}
-        fitMode={fitMode}
-        onFitWidth={() => setFitMode('width')}
-        onFitPage={() => setFitMode('page')}
-        tool={tool}
-        onToolChange={setTool}
-        panelOpen={showPanel}
-        onTogglePanel={onTogglePanel}
-        settingsOpen={settingsOpen}
-        onToggleSettings={onToggleSettings}
-        disabled={toolsDisabled}
-      />
-      {extraToolbar}
-
-      <div className="viewer-body d-flex flex-grow-1 min-h-0">
-        {showPanel ? (
-          <LayerPanel
-            showCanvas={showCanvas}
-            onToggleCanvas={setShowCanvas}
-            showHotspots={showHotspots}
-            onToggleHotspots={setShowHotspots}
-            indexSourceName={indexSourceName}
-            indexCount={indexCount}
-            hotspots={hotspots}
-            scan={scan}
-            onSelect={onHotspotClick}
-            disabled={isBusy || tool === 'pan'}
-            lookupDescription={lookupDescription}
-          />
-        ) : null}
-
+    <div className="template-2d-viewer-container">
+      <ViewerNavbar title={title} />
+      <div className="template-2d-viewer-main">
         <div
-          className={`viewer-stage flex-grow-1 min-w-0 min-h-0${tool === 'pan' ? ' is-pan' : ''}`}
+          className={`viewer-stage${tool === 'pan' ? ' is-pan' : ''}`}
           ref={stageRef}
         >
           {isLoading ? (
@@ -253,6 +226,7 @@ const PDFViewer = ({
               codeRegex={codeRegex}
               onHotspots={handleHotspots}
               onSelectHotspot={onHotspotClick}
+              onInspectHotspot={setInspectSpot}
               isBusy={isBusy}
               busyLabel={busyLabel}
               lookupDescription={lookupDescription}
@@ -262,7 +236,67 @@ const PDFViewer = ({
             />
           ) : null}
         </div>
+
+        <LeftToolbar
+          panelOpen={showPanel}
+          onTogglePanel={onTogglePanel}
+          onToggleProperties={() => setPropertiesOpen((open) => !open)}
+          onBrowseFiles={onBrowseFiles}
+        />
+
+        <TopToolbar
+          pageNumber={pageNumber}
+          pageCount={pageCount}
+          onPageChange={handlePageChange}
+          canGoBack={canGoBack}
+          onBack={onBack}
+          tool={tool}
+          onToolChange={setTool}
+          onZoomIn={() => zoomBy(BUTTON_ZOOM_STEP)}
+          fitMode={fitMode}
+          onFitPage={() => setFitMode('page')}
+          showHotspots={showHotspots}
+          onToggleHotspots={setShowHotspots}
+          onBrowseFiles={onBrowseFiles}
+          disabled={toolsDisabled}
+        />
+
+        <div
+          className="template-2d-viewer-panel-wrap template-2d-viewer-panel-wrap--left"
+          hidden={!showPanel}
+          aria-hidden={!showPanel}
+        >
+          <LayerPanel
+            visibility={layerVisibility}
+            onToggleLayer={toggleLayer}
+            onClose={onTogglePanel}
+          />
+        </div>
+
+        <div
+          className="template-2d-viewer-panel-wrap template-2d-viewer-panel-wrap--right"
+          hidden={!propertiesOpen}
+          aria-hidden={!propertiesOpen}
+        >
+          <PropertiesPanel
+            inspectSpot={inspectSpot}
+            pageSize={{ width: pageSize.width * scale, height: pageSize.height * scale }}
+            onClose={() => setPropertiesOpen(false)}
+          />
+        </div>
       </div>
+
+      {extraToolbar}
+
+      <BottomToolbar
+        onToggleSettings={onToggleSettings}
+        onFitPage={() => setFitMode('page')}
+        fitMode={fitMode}
+        onZoomIn={() => zoomBy(BUTTON_ZOOM_STEP)}
+        onZoomOut={() => zoomBy(1 / BUTTON_ZOOM_STEP)}
+        onToggleProperties={() => setPropertiesOpen((open) => !open)}
+        disabled={toolsDisabled}
+      />
     </div>
   );
 };

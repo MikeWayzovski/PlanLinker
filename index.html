@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="modus-modern-light" data-mode="light" class="light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -10,6 +10,34 @@
       content="Plan Linker is a Trimble Connect extension that links overview drawings to detail sheets through clickable PDF hotspots."
     />
     <title>Plan Linker</title>
+    <script>
+      (function () {
+        document.documentElement.setAttribute('data-theme', 'modus-modern-light');
+        document.documentElement.setAttribute('data-mode', 'light');
+        document.documentElement.classList.add('light');
+        try {
+          localStorage.setItem('theme', 'light');
+          localStorage.setItem('modus-theme-config', JSON.stringify({ theme: 'modus-modern-light' }));
+        } catch (error) {
+          /* Ignore private-mode storage failures. */
+        }
+      })();
+    </script>
+    <link
+      rel="preload"
+      href="https://cdn.jsdelivr.net/npm/@trimble-oss/modus-icons@1/dist/modus-outlined/fonts/modus-icons.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="https://cdn.jsdelivr.net/npm/@trimble-oss/modus-icons@1/dist/modus-solid/fonts/modus-icons.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="stylesheet" href="/modus-web-components/modus-icons.css" />
   </head>
   <body>
     <div id="root"></div>

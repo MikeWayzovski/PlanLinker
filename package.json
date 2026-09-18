@@ -1,7 +1,7 @@
 {
   "name": "planlinker",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,7 @@
     "@trimble-oss/modus-bootstrap": "^2.3.2",
     "@trimble-oss/modus-icons": "^1.21.0",
     "@trimble-oss/modus-icons-css": "^0.9.0",
+    "@trimble-oss/moduswebcomponents-react": "1.16.0-react18",
     "@trimble-oss/trimble-id-react": "^1.0.3",
     "bootstrap": "^5.3.8",
     "pdfjs-dist": "^5.4.296",
