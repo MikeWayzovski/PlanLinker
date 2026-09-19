@@ -485,9 +485,10 @@ function App() {
             source={source}
             sourceKey={currentSheet.id}
             title={currentSheet.name}
+            fileName={currentSheet.name}
             canGoBack={history.length > 0}
             onBack={handleBack}
-            onBrowseFiles={handleBrowseFiles}
+            onClose={handleBrowseFiles}
             codeRegex={settings.codeRegex}
             showPanel={settings.showHotspotPanel}
             onTogglePanel={() => updateSetting('showHotspotPanel', !settings.showHotspotPanel)}

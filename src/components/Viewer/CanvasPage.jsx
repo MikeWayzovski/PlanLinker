@@ -21,6 +21,7 @@ const CanvasPage = ({
   showCanvas = true,
   showHotspots = true,
   interactionMode = 'select',
+  onRendered,
 }) => {
   const canvasRef = useRef(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -76,6 +77,9 @@ const CanvasPage = ({
 
         const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
         renderTask = page.render({ canvasContext: context, canvas, viewport, transform });
+        requestAnimationFrame(() => {
+          if (!cancelled) onRendered?.({ width: viewport.width, height: viewport.height });
+        });
         await renderTask.promise;
       } catch (error) {
         if (error?.name === 'RenderingCancelledException') return;
@@ -89,7 +93,7 @@ const CanvasPage = ({
       cancelled = true;
       if (renderTask) renderTask.cancel();
     };
-  }, [pdf, pageNumber, scale]);
+  }, [pdf, pageNumber, scale, onRendered]);
 
   useEffect(() => {
     if (!pdf || !textScan || textScan.pageNumber !== pageNumber) return undefined;
@@ -124,8 +128,10 @@ const CanvasPage = ({
     };
   }, [pdf, pageNumber, scale, codeRegex, textScan, onHotspots]);
 
+  const capturePointer = interactionMode === 'pan' || interactionMode === 'boxzoom';
+
   return (
-    <div className={`canvas-stage${interactionMode === 'pan' ? ' canvas-stage-pan' : ''}`}>
+    <div className={`canvas-stage${capturePointer ? ' canvas-stage-pan' : ''}`}>
       <div className="canvas-sheet">
         <canvas ref={canvasRef} className={`pdf-canvas${showCanvas ? '' : ' pdf-canvas-hidden'}`} />
         <HotspotOverlay
@@ -134,7 +140,7 @@ const CanvasPage = ({
           canvasHeight={size.height}
           onSelect={onSelectHotspot}
           onInspect={onInspectHotspot}
-          disabled={isBusy || interactionMode === 'pan'}
+          disabled={isBusy || capturePointer}
           lookupDescription={lookupDescription}
           visible={showHotspots}
           selectedKey={selectedKey}
