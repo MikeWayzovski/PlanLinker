@@ -4,76 +4,56 @@ import {
   ModusWcCollapse,
   ModusWcIcon,
   ModusWcPanel,
+  ModusWcSwitch,
   ModusWcTextInput,
   ModusWcTypography,
 } from '@trimble-oss/moduswebcomponents-react';
-import { readInputString } from '../../utils/modusFormEvents';
-import { TEMPLATE_LAYERS } from './layerColors';
+import { readInputChecked, readInputString } from '../../utils/modusFormEvents';
+import HotspotPanel from './HotspotPanel';
 
-const LayerRow = ({ name, color, nested, visible, onToggle }) => (
-  <div className={`template-2d-viewer-layer-item${nested ? ' is-nested' : ''}`}>
+const LayerSwitch = ({ id, swatchClass, label, checked, onChange }) => (
+  <div className="template-2d-viewer-layer-item">
     <div className="template-2d-viewer-layer-label-wrap">
-      <ModusWcButton
-        variant="borderless"
-        color="tertiary"
-        shape="square"
-        size="sm"
-        aria-label={`${visible ? 'Hide' : 'Show'} ${name}`}
-        buttonAriaLabel={`${visible ? 'Hide' : 'Show'} ${name}`}
-        onButtonClick={onToggle}
-      >
-        <ModusWcIcon name={visible ? 'visibility_on' : 'visibility_off'} decorative size="sm" />
-      </ModusWcButton>
-      <span className="template-2d-viewer-swatch" style={{ backgroundColor: color }} />
+      <span className={`template-2d-viewer-swatch ${swatchClass}`} />
       <div className="template-2d-viewer-layer-label">
-        <ModusWcTypography hierarchy="p" size="sm" label={name} customClass="template-2d-viewer-truncate" />
+        <ModusWcTypography hierarchy="p" size="sm" label={label} customClass="template-2d-viewer-truncate" />
       </div>
     </div>
-    <ModusWcButton
-      variant="borderless"
-      color="tertiary"
-      shape="square"
+    <ModusWcSwitch
+      inputId={id}
       size="sm"
-      aria-label="More options"
-      buttonAriaLabel="More options"
-      customClass="template-2d-viewer-more"
-    >
-      <ModusWcIcon name="more_vertical" decorative size="sm" />
-    </ModusWcButton>
+      value={checked}
+      aria-label={label}
+      onInputChange={(event) => onChange(readInputChecked(event))}
+    />
   </div>
 );
 
-const LayerList = ({ layers, visibility, onToggle, query }) => {
-  const visibleLayers = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return layers;
-    return layers.filter((layer) => layer.name.toLowerCase().includes(needle));
-  }, [layers, query]);
-
-  return (
-    <div className="template-2d-viewer-layer-list">
-      {visibleLayers.map((layer) => (
-        <LayerRow
-          key={layer.id}
-          name={layer.name}
-          color={layer.color}
-          nested={layer.nested}
-          visible={visibility[layer.id] !== false}
-          onToggle={() => onToggle(layer.id)}
-        />
-      ))}
-    </div>
-  );
-};
-
 const LayerPanel = ({
-  visibility,
-  onToggleLayer,
+  showCanvas,
+  onToggleCanvas,
+  showHotspots,
+  onToggleHotspots,
+  hotspots = [],
+  scan,
+  selectedKey,
+  onSelect,
+  disabled,
+  lookupDescription,
   onClose,
 }) => {
   const [layersExpanded, setLayersExpanded] = useState(true);
-  const [surfacesExpanded, setSurfacesExpanded] = useState(false);
+  const [hotspotsExpanded, setHotspotsExpanded] = useState(true);
   const [query, setQuery] = useState('');
+
+  const filteredHotspots = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return hotspots;
+    return hotspots.filter((spot) => {
+      const description = lookupDescription?.(spot.code) || '';
+      return `${spot.code} ${description}`.toLowerCase().includes(needle);
+    });
+  }, [hotspots, lookupDescription, query]);
 
   return (
     <ModusWcPanel floating width="280px" height="100%" customClass="template-2d-viewer-panel">
@@ -107,35 +87,43 @@ const LayerPanel = ({
           onExpandedChange={(event) => setLayersExpanded(Boolean(event.detail?.expanded))}
         >
           <div slot="header">
-            <ModusWcTypography
-              hierarchy="p"
-              size="sm"
-              weight="semibold"
-              label="Layers"
-              customClass="template-2d-viewer-truncate"
-            />
+            <ModusWcTypography hierarchy="p" size="sm" weight="semibold" label="Layers" />
           </div>
-          <div slot="content">
-            <LayerList layers={TEMPLATE_LAYERS} visibility={visibility} onToggle={onToggleLayer} query={query} />
+          <div slot="content" className="template-2d-viewer-layer-list">
+            <LayerSwitch
+              id="layer-pdf"
+              swatchClass="template-2d-viewer-swatch--pdf"
+              label="PDF drawing"
+              checked={showCanvas}
+              onChange={onToggleCanvas}
+            />
+            <LayerSwitch
+              id="layer-hotspots"
+              swatchClass="template-2d-viewer-swatch--hotspots"
+              label="Hotspot overlay"
+              checked={showHotspots}
+              onChange={onToggleHotspots}
+            />
           </div>
         </ModusWcCollapse>
 
         <ModusWcCollapse
-          collapseId="viewer-styles"
-          expanded={surfacesExpanded}
-          onExpandedChange={(event) => setSurfacesExpanded(Boolean(event.detail?.expanded))}
+          collapseId="viewer-hotspots"
+          expanded={hotspotsExpanded}
+          onExpandedChange={(event) => setHotspotsExpanded(Boolean(event.detail?.expanded))}
         >
           <div slot="header">
-            <ModusWcTypography
-              hierarchy="p"
-              size="sm"
-              weight="semibold"
-              label="Styles"
-              customClass="template-2d-viewer-truncate"
-            />
+            <ModusWcTypography hierarchy="p" size="sm" weight="semibold" label="Detected hotspots" />
           </div>
           <div slot="content">
-            <LayerList layers={TEMPLATE_LAYERS} visibility={visibility} onToggle={onToggleLayer} query={query} />
+            <HotspotPanel
+              hotspots={filteredHotspots}
+              scan={scan}
+              selectedKey={selectedKey}
+              onSelect={onSelect}
+              disabled={disabled}
+              lookupDescription={lookupDescription}
+            />
           </div>
         </ModusWcCollapse>
       </div>

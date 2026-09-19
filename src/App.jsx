@@ -494,6 +494,7 @@ function App() {
             settingsOpen={settingsOpen}
             onToggleSettings={() => setSettingsOpen((open) => !open)}
             onHotspotClick={handleHotspot}
+            onResolveCode={(code) => search(code, { silent: true })}
             isBusy={isSearching || Boolean(lookupLabel)}
             busyLabel={lookupLabel || 'Looking up drawing…'}
             lookupDescription={lookupDescription}

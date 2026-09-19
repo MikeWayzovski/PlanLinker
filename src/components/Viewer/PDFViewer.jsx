@@ -35,6 +35,7 @@ const PDFViewer = ({
   onTogglePanel,
   onToggleSettings,
   onHotspotClick,
+  onResolveCode,
   isBusy,
   busyLabel,
   extraToolbar,
@@ -49,26 +50,14 @@ const PDFViewer = ({
   const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
   const [tool, setTool] = useState('select');
   const [propertiesOpen, setPropertiesOpen] = useState(true);
-  const [inspectSpot, setInspectSpot] = useState(null);
-  const [layerVisibility, setLayerVisibility] = useState({
-    background: true,
-    annotations: true,
-    shapes: true,
-    text: true,
-    guides: true,
-    grid: true,
-  });
-
-  const showCanvas = layerVisibility.background !== false;
-  const showHotspots = layerVisibility.annotations !== false;
-
-  const toggleLayer = (id) => {
-    setLayerVisibility((current) => ({ ...current, [id]: current[id] === false }));
-  };
-
-  const setShowHotspots = (value) => {
-    setLayerVisibility((current) => ({ ...current, annotations: Boolean(value) }));
-  };
+  const [showCanvas, setShowCanvas] = useState(true);
+  const [showHotspots, setShowHotspots] = useState(true);
+  const [hotspots, setHotspots] = useState([]);
+  const [scan, setScan] = useState(null);
+  const [selectedHotspot, setSelectedHotspot] = useState(null);
+  const [matchedFiles, setMatchedFiles] = useState([]);
+  const [isResolving, setIsResolving] = useState(false);
+  const resolveGenRef = useRef(0);
 
   const zoomBy = useCallback((factor) => {
     setFitMode(null);
@@ -194,10 +183,73 @@ const PDFViewer = ({
     if (!pageCount) return;
     const next = Math.min(pageCount, Math.max(1, Number(value) || 1));
     setPageNumber(next);
-    setInspectSpot(null);
+    setHotspots([]);
+    setScan(null);
+    setSelectedHotspot(null);
+    setMatchedFiles([]);
+    setIsResolving(false);
+    resolveGenRef.current += 1;
   };
 
-  const handleHotspots = useCallback(() => {}, []);
+  const handleHotspots = useCallback((nextHotspots, meta) => {
+    const list = nextHotspots || [];
+    setHotspots(list);
+    setScan(meta || null);
+    setSelectedHotspot((current) => {
+      if (!current) return null;
+      return list.find((spot) => spot.key === current.key) || null;
+    });
+  }, []);
+
+  const resolveMatches = useCallback(
+    async (spot) => {
+      const generation = resolveGenRef.current + 1;
+      resolveGenRef.current = generation;
+      setIsResolving(true);
+      setMatchedFiles([]);
+      if (!onResolveCode) {
+        setIsResolving(false);
+        return;
+      }
+      try {
+        const files = await onResolveCode(spot.code);
+        if (resolveGenRef.current !== generation) return;
+        setMatchedFiles(Array.isArray(files) ? files : []);
+      } catch {
+        if (resolveGenRef.current !== generation) return;
+        setMatchedFiles([]);
+      } finally {
+        if (resolveGenRef.current === generation) setIsResolving(false);
+      }
+    },
+    [onResolveCode],
+  );
+
+  const selectHotspot = useCallback(
+    (spot, { open = false } = {}) => {
+      if (!spot) return;
+      setSelectedHotspot(spot);
+      setPropertiesOpen(true);
+      resolveMatches(spot);
+      if (open) onHotspotClick?.(spot);
+    },
+    [onHotspotClick, resolveMatches],
+  );
+
+  const handleCanvasSelect = useCallback(
+    (spot) => {
+      selectHotspot(spot, { open: false });
+    },
+    [selectHotspot],
+  );
+
+  const handleListSelect = useCallback(
+    (spot) => {
+      selectHotspot(spot, { open: true });
+    },
+    [selectHotspot],
+  );
+
   const toolsDisabled = !pageCount || Boolean(error);
 
   return (
@@ -225,8 +277,8 @@ const PDFViewer = ({
               scale={scale}
               codeRegex={codeRegex}
               onHotspots={handleHotspots}
-              onSelectHotspot={onHotspotClick}
-              onInspectHotspot={setInspectSpot}
+              onSelectHotspot={handleCanvasSelect}
+              selectedKey={selectedHotspot?.key}
               isBusy={isBusy}
               busyLabel={busyLabel}
               lookupDescription={lookupDescription}
@@ -267,8 +319,16 @@ const PDFViewer = ({
           aria-hidden={!showPanel}
         >
           <LayerPanel
-            visibility={layerVisibility}
-            onToggleLayer={toggleLayer}
+            showCanvas={showCanvas}
+            onToggleCanvas={setShowCanvas}
+            showHotspots={showHotspots}
+            onToggleHotspots={setShowHotspots}
+            hotspots={hotspots}
+            scan={scan}
+            selectedKey={selectedHotspot?.key}
+            onSelect={handleListSelect}
+            disabled={isBusy}
+            lookupDescription={lookupDescription}
             onClose={onTogglePanel}
           />
         </div>
@@ -279,8 +339,12 @@ const PDFViewer = ({
           aria-hidden={!propertiesOpen}
         >
           <PropertiesPanel
-            inspectSpot={inspectSpot}
-            pageSize={{ width: pageSize.width * scale, height: pageSize.height * scale }}
+            selectedHotspot={selectedHotspot}
+            lookupDescription={lookupDescription}
+            matchedFiles={matchedFiles}
+            isResolving={isResolving}
+            isBusy={isBusy}
+            onOpenDetail={onHotspotClick}
             onClose={() => setPropertiesOpen(false)}
           />
         </div>

@@ -14,6 +14,7 @@ const CanvasPage = ({
   onHotspots,
   onSelectHotspot,
   onInspectHotspot,
+  selectedKey,
   isBusy,
   busyLabel,
   lookupDescription,
@@ -136,6 +137,7 @@ const CanvasPage = ({
           disabled={isBusy || interactionMode === 'pan'}
           lookupDescription={lookupDescription}
           visible={showHotspots}
+          selectedKey={selectedKey}
         />
         {isBusy ? (
           <div className="canvas-loading" role="status" aria-live="polite">

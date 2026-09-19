@@ -379,7 +379,14 @@ i[class*=' modus-icon-'] {
 }
 
 .template-2d-viewer-property-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
   min-width: 0;
+}
+
+.template-2d-viewer-open-detail {
+  margin-top: 0.75rem;
 }
 
 .template-2d-viewer-more {
@@ -426,6 +433,10 @@ i[class*=' modus-icon-'] {
   background-color: var(--modus-wc-color-base-200, #e0e1e9);
 }
 
+.template-2d-viewer-layer-item.is-selected {
+  background-color: var(--modus-wc-color-blue-pale, #dbedf9);
+}
+
 .template-2d-viewer-layer-item.is-nested {
   padding-left: 1.5rem;
 }
@@ -448,6 +459,14 @@ i[class*=' modus-icon-'] {
   height: 0.75rem;
   border-radius: 0.125rem;
   flex-shrink: 0;
+}
+
+.template-2d-viewer-swatch--pdf {
+  background-color: var(--modus-wc-color-trimble-purple, #6b4eaa);
+}
+
+.template-2d-viewer-swatch--hotspots {
+  background-color: var(--modus-wc-color-primary, #0063a3);
 }
 
 .template-2d-viewer-swatch-lg {
@@ -595,11 +614,16 @@ i[class*=' modus-icon-'] {
 }
 
 .hotspot:hover,
-.hotspot:focus-visible {
+.hotspot:focus-visible,
+.hotspot.is-selected {
   background: rgba(0, 99, 163, 0.28);
-  outline: 2px solid var(--bs-primary);
+  outline: 2px solid var(--modus-wc-color-primary, #0063a3);
   outline-offset: 1px;
   z-index: 2;
+}
+
+.hotspot.is-selected {
+  background: rgba(0, 99, 163, 0.36);
 }
 
 .hotspot[data-tooltip]::after {

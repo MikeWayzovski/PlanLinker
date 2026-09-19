@@ -9,6 +9,7 @@ const HotspotOverlay = ({
   disabled,
   lookupDescription,
   visible = true,
+  selectedKey,
 }) => {
   if (!visible || !hotspots?.length || !canvasWidth || !canvasHeight) return null;
 
@@ -21,11 +22,11 @@ const HotspotOverlay = ({
           <button
             key={spot.key}
             type="button"
-            className="hotspot"
+            className={`hotspot${selectedKey === spot.key ? ' is-selected' : ''}`}
             disabled={disabled}
             title={label}
             data-tooltip={label}
-            aria-label={description ? `Open drawing ${label}` : `Open drawing ${spot.code}`}
+            aria-label={description ? `Select hotspot ${label}` : `Select hotspot ${spot.code}`}
             onMouseEnter={() => onInspect?.(spot)}
             onFocus={() => onInspect?.(spot)}
             onClick={() => onSelect(spot)}

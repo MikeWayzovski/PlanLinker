@@ -10,19 +10,21 @@ export const useDrawingSearch = ({ getToken, region, projectId, fallbackFolder }
   const [error, setError] = useState(null);
 
   const search = useCallback(
-    async (code) => {
-      setIsSearching(true);
-      setError(null);
+    async (code, { silent = false } = {}) => {
+      if (!silent) {
+        setIsSearching(true);
+        setError(null);
+      }
       try {
         const token = await getToken();
         const matches = await searchProjectFiles(token, region, projectId, code, fallbackFolder);
         return matches;
       } catch (searchError) {
         Logger.error(`Search for ${code} failed`, searchError.message);
-        setError(searchError);
+        if (!silent) setError(searchError);
         throw searchError;
       } finally {
-        setIsSearching(false);
+        if (!silent) setIsSearching(false);
       }
     },
     [getToken, region, projectId, fallbackFolder],

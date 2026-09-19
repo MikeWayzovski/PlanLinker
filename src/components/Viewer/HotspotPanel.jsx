@@ -2,7 +2,7 @@ import React from 'react';
 import { ModusWcButton, ModusWcTypography } from '@trimble-oss/moduswebcomponents-react';
 import EmptyState from '../Modus/EmptyState';
 
-const HotspotPanel = ({ hotspots, scan, onSelect, disabled, lookupDescription }) => {
+const HotspotPanel = ({ hotspots, scan, selectedKey, onSelect, disabled, lookupDescription }) => {
   const itemCount = scan?.itemCount;
   const noText = itemCount === 0;
   const emptyTitle = noText ? 'No selectable text on this page' : 'No codes on this page';
@@ -32,11 +32,12 @@ const HotspotPanel = ({ hotspots, scan, onSelect, disabled, lookupDescription })
           {hotspots.map((spot) => {
             const description = lookupDescription?.(spot.code) || '';
             return (
-              <li key={spot.key} className="template-2d-viewer-layer-item">
+              <li key={spot.key} className={`template-2d-viewer-layer-item${selectedKey === spot.key ? ' is-selected' : ''}`}>
                 <ModusWcButton
                   variant="borderless"
                   color="tertiary"
                   size="sm"
+                  pressed={selectedKey === spot.key}
                   customClass="template-2d-viewer-hotspot-button"
                   disabled={disabled}
                   onButtonClick={() => onSelect(spot)}
