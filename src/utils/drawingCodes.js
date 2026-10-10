@@ -47,14 +47,21 @@ const aabbFromPoints = (points) => {
   };
 };
 
+const applyTextMatrix = (tx, x, y) => [
+  tx[0] * x + tx[2] * y + tx[4],
+  tx[1] * x + tx[3] * y + tx[5],
+];
+
+const coversWholeItem = (spanStart, spanLength, charCount) =>
+  spanStart === 0 && spanLength >= Math.max(1, Math.ceil(charCount * 0.85));
+
 /**
  * Convert a PDF.js text item (and optional substring range) into viewport CSS pixels.
  *
- * Do not add `item.width` / `item.height` onto the PDF-space origin and then
- * run `convertToViewportRectangle`. On CAD/TrueType exports those sizes are often
- * glyph units, which stretches every hotspot into a tall overlapping strip.
- * Match the PDF.js text layer: combine viewport × text matrix, then size the box
- * from the transformed advance and font vectors.
+ * Drawing codes are usually the entire text item. In that case use the item
+ * transform + PDF.js advance (`item.width`) with no character offset — a linear
+ * `runWidth * ratioStart` shift misses proportional fonts and slides the box.
+ * Substrings walk 0.5em steps through the same matrix so zoom stays aligned.
  */
 export const itemToViewportRect = (item, viewport, start = 0, length = itemString(item).length) => {
   const text = itemString(item);
@@ -66,41 +73,43 @@ export const itemToViewportRect = (item, viewport, start = 0, length = itemStrin
   const runScale = Math.hypot(tx[0], tx[1]) || 1;
   const srcScale = Math.hypot(src[0], src[1]) || 1;
   const charCount = Math.max(text.length, 1);
-  const spanStart = Math.min(Math.max(start, 0), charCount - 1);
-  const spanLength = Math.min(Math.max(length, 1), charCount - spanStart);
+  const spanStart = Math.min(Math.max(Number(start) || 0, 0), charCount - 1);
+  const spanLength = Math.min(Math.max(Number(length) || charCount, 1), charCount - spanStart);
 
-  let itemWidth = Number(item.width) || 0;
-  if (itemWidth > 0) itemWidth *= runScale / srcScale;
-  const avgChar = itemWidth > 1 ? itemWidth / charCount : fontHeight * 0.55;
-  const offset = avgChar * spanStart;
-  const advance = Math.max(avgChar * spanLength, fontHeight * 0.35);
+  let box;
+  if (coversWholeItem(spanStart, spanLength, charCount)) {
+    let advance = Number(item.width) || 0;
+    if (advance > 0) advance *= runScale / srcScale;
+    if (advance < fontHeight * 0.3) advance = fontHeight * 0.5 * charCount;
 
-  const angle = Math.atan2(tx[1], tx[0]);
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const originX = tx[4] + offset * cos;
-  const originY = tx[5] + offset * sin;
+    const angle = Math.atan2(tx[1], tx[0]);
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const originX = tx[4];
+    const originY = tx[5];
+    box = aabbFromPoints([
+      [originX, originY],
+      [originX + advance * cos, originY + advance * sin],
+      [originX + tx[2], originY + tx[3]],
+      [originX + advance * cos + tx[2], originY + advance * sin + tx[3]],
+    ]);
+  } else {
+    const em = 0.5;
+    const x0 = spanStart * em;
+    const x1 = (spanStart + spanLength) * em;
+    box = aabbFromPoints([
+      applyTextMatrix(tx, x0, 0),
+      applyTextMatrix(tx, x1, 0),
+      applyTextMatrix(tx, x0, 1),
+      applyTextMatrix(tx, x1, 1),
+    ]);
+  }
 
-  const upLen = Math.hypot(tx[2], tx[3]) || 1;
-  const upX = (tx[2] / upLen) * fontHeight;
-  const upY = (tx[3] / upLen) * fontHeight;
-  const alongX = advance * cos;
-  const alongY = advance * sin;
-
-  const box = aabbFromPoints([
-    [originX, originY],
-    [originX + alongX, originY + alongY],
-    [originX + upX, originY + upY],
-    [originX + alongX + upX, originY + alongY + upY],
-  ]);
-
-  const maxWidth = avgChar * spanLength + fontHeight * 0.35;
-  const maxHeight = fontHeight * 1.35;
   return {
     left: box.left,
     top: box.top,
-    width: Math.max(Math.min(box.width, maxWidth), 8),
-    height: Math.max(Math.min(box.height, maxHeight), 8),
+    width: Math.max(box.width, 8),
+    height: Math.max(Math.min(box.height, fontHeight * 1.4), 8),
   };
 };
 
@@ -292,6 +301,15 @@ const rectsForMatch = (map, start, length, viewport) => {
   const rects = groups.map((group) =>
     itemToViewportRect(group.item, viewport, group.start, group.end - group.start + 1),
   );
+
+  if (groups.length === 1) {
+    const group = groups[0];
+    const chars = Math.max(itemString(group.item).length, 1);
+    if (coversWholeItem(group.start, group.end - group.start + 1, chars)) {
+      return rects[0];
+    }
+  }
+
   const nearby = unionNearbyRects(rects);
   const expected = expectedCodeWidth(rects, matchLength);
   const chosen =
@@ -300,7 +318,7 @@ const rectsForMatch = (map, start, length, viewport) => {
 
   return {
     ...chosen,
-    width: Math.min(chosen.width, expected * 1.35),
+    width: Math.min(chosen.width, Math.max(expected * 1.35, chosen.height * 0.5 * matchLength)),
   };
 };
 
