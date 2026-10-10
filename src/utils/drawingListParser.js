@@ -1,11 +1,6 @@
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { normalizeDrawingCode } from './drawingCodes';
 import { Logger } from './logger';
-
-if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
-}
+import { openPdfDocument } from './pdfjsSetup';
 
 const MAX_PAGES = 40;
 const UNICODE_HYPHEN = /[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]/g;
@@ -213,7 +208,7 @@ export const parseDrawingListPDF = async (pdfDocument) => {
 
 export const parseDrawingListBlob = async (blob) => {
   const data = await blob.arrayBuffer();
-  const loadingTask = pdfjsLib.getDocument({ data });
+  const loadingTask = openPdfDocument({ data });
   const pdf = await loadingTask.promise;
   try {
     return await parseDrawingListPDF(pdf);

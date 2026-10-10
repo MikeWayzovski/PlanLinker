@@ -1,5 +1,8 @@
 node_modules/
 dist/
+public/pdfjs-wasm/
+public/pdfjs-cmaps/
+public/pdfjs-standard_fonts/
 .env
 .env.local
 .env.*.local

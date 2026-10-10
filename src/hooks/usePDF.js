@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { openPdfDocument, pdfjsLib } from '../utils/pdfjsSetup';
 import { Logger } from '../utils/logger';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 /**
  * Load a PDF.js document from a blob, ArrayBuffer, or URL.
@@ -40,7 +37,7 @@ export const usePDF = (source, sourceKey = '') => {
       setIsLoading(true);
       setError(null);
       try {
-        loadingTask = pdfjsLib.getDocument(source);
+        loadingTask = openPdfDocument(source);
         pdfDocument = await loadingTask.promise;
         if (cancelled) {
           destroy();

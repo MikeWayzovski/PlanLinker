@@ -66,13 +66,18 @@ export const normalizeEntry = (entry) => ({
   path: pathTextOf(entry),
   size: Number(entry?.size ?? entry?.sz ?? entry?.fileSize) || 0,
   modifiedOn: entry?.modifiedOn || entry?.updatedOn || '',
-  thumbnailUrl: entry?.thumbnailUrl || entry?.thumbnail || entry?.previewUrl || '',
+  thumbnailUrl: entry?.thumbnailUrl || entry?.thumbnail || entry?.previewUrl || entry?.thumbUrl || '',
   raw: entry,
 });
 
 const normalizeFile = normalizeEntry;
 
 async function fetchJson(url, token) {
+  if (!token) {
+    const error = new Error('Missing access token for Trimble Connect.');
+    error.status = 401;
+    throw error;
+  }
   const response = await fetch(url, { headers: authHeaders(token) });
   if (!response.ok) {
     const detail = await readError(response);
@@ -110,6 +115,14 @@ export const getProjectDetails = async (token, regionName, projectId) => {
   return fetchJson(`${baseUrl}${API_V20}/projects/${projectId}?fullyLoaded=true`, token);
 };
 
+const resolveMediaUrl = (value, regionName) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('/')) return `${getBaseUrlForRegion(regionName)}${raw}`;
+  return raw;
+};
+
 export const getFileThumbnailUrl = (regionName, fileId, versionId = '') => {
   if (!fileId) return '';
   const query = versionId ? `?versionId=${encodeURIComponent(versionId)}` : '';
@@ -128,10 +141,12 @@ export const getProjectThumbnailUrl = (regionName, projectId, project) => {
   return `${getBaseUrlForRegion(regionName)}${API_V20}/projects/${encodeURIComponent(projectId)}/thumbnail`;
 };
 
+/** Keep API-provided thumbnail URLs. Do not invent `/files/{id}/thumbnail` — that path 404s and surfaces as CORS. */
 export const withFileThumbnails = (entries, regionName) =>
   (entries || []).map((entry) => {
-    if (!entry?.id || entry.type === 'FOLDER' || entry.thumbnailUrl) return entry;
-    return { ...entry, thumbnailUrl: getFileThumbnailUrl(regionName, entry.id, entry.versionId) };
+    const thumbnailUrl = resolveMediaUrl(entry?.thumbnailUrl, regionName);
+    if (thumbnailUrl === entry?.thumbnailUrl) return entry;
+    return { ...entry, thumbnailUrl };
   });
 
 const readRootId = (project) =>
@@ -378,11 +393,9 @@ export const searchProjectFiles = async (token, regionName, projectId, query, fa
 };
 
 const downloadUrlPaths = (fileId, versionId) => {
+  const id = encodeURIComponent(fileId);
   const q = versionId ? `?versionId=${encodeURIComponent(versionId)}` : '';
-  return [
-    `/files/fs/${fileId}/downloadurl${q}`,
-    `/files/${fileId}/downloadurl${q}`,
-  ];
+  return [`/files/fs/${id}/downloadurl${q}`, `/files/${id}/downloadurl${q}`];
 };
 
 /**
@@ -413,7 +426,7 @@ export const getFileDownloadUrl = async (token, regionName, fileId, versionId = 
  */
 export const downloadFileBlob = async (token, regionName, fileId, versionId = '') => {
   const downloadUrl = await getFileDownloadUrl(token, regionName, fileId, versionId);
-  const response = await fetch(downloadUrl);
+  const response = await fetch(downloadUrl, { method: 'GET' });
   if (!response.ok) {
     throw new Error(`Downloading the file failed (${response.status}).`);
   }
