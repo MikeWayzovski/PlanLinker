@@ -66,18 +66,14 @@ export const itemToViewportRect = (item, viewport, start = 0, length = itemStrin
   const runScale = Math.hypot(tx[0], tx[1]) || 1;
   const srcScale = Math.hypot(src[0], src[1]) || 1;
   const charCount = Math.max(text.length, 1);
+  const spanStart = Math.min(Math.max(start, 0), charCount - 1);
+  const spanLength = Math.min(Math.max(length, 1), charCount - spanStart);
 
-  let runWidth = Number(item.width) || 0;
-  if (runWidth > 0) runWidth *= runScale / srcScale;
-  if (runWidth < 1) runWidth = fontHeight * 0.55 * charCount;
-
-  const maxRun = fontHeight * charCount * 2.4;
-  if (runWidth > maxRun) runWidth = maxRun;
-
-  const ratioStart = start / charCount;
-  const ratioLength = Math.max(length, 1) / charCount;
-  const offset = runWidth * ratioStart;
-  const advance = Math.max(runWidth * ratioLength, fontHeight * 0.35);
+  let itemWidth = Number(item.width) || 0;
+  if (itemWidth > 0) itemWidth *= runScale / srcScale;
+  const avgChar = itemWidth > 1 ? itemWidth / charCount : fontHeight * 0.55;
+  const offset = avgChar * spanStart;
+  const advance = Math.max(avgChar * spanLength, fontHeight * 0.35);
 
   const angle = Math.atan2(tx[1], tx[0]);
   const cos = Math.cos(angle);
@@ -98,12 +94,13 @@ export const itemToViewportRect = (item, viewport, start = 0, length = itemStrin
     [originX + alongX + upX, originY + alongY + upY],
   ]);
 
-  const maxEdge = advance + fontHeight * 1.25;
+  const maxWidth = avgChar * spanLength + fontHeight * 0.35;
+  const maxHeight = fontHeight * 1.35;
   return {
     left: box.left,
     top: box.top,
-    width: Math.max(Math.min(box.width, maxEdge), 8),
-    height: Math.max(Math.min(box.height, maxEdge), 8),
+    width: Math.max(Math.min(box.width, maxWidth), 8),
+    height: Math.max(Math.min(box.height, maxHeight), 8),
   };
 };
 
@@ -169,6 +166,23 @@ const clusterLines = (boxes) => {
   return lines;
 };
 
+/** Keep only items that sit next to each other so a title-block row is not one giant run. */
+const splitVisualRuns = (boxes) => {
+  const runs = [];
+  boxes.forEach((box) => {
+    const current = runs[runs.length - 1];
+    const prev = current?.[current.length - 1];
+    const gap = prev ? box.rect.left - (prev.rect.left + prev.rect.width) : 0;
+    const limit = Math.max(box.rect.height, prev?.rect.height || 8, 8) * 2.8;
+    if (current && gap <= limit) {
+      current.push(box);
+    } else {
+      runs.push([box]);
+    }
+  });
+  return runs;
+};
+
 const joinBoxes = (boxes) => {
   let text = '';
   const map = [];
@@ -226,23 +240,68 @@ const matchAllSafe = (text, regex) => {
   return matches;
 };
 
+const expectedCodeWidth = (rects, matchLength) => {
+  const font = Math.max(...rects.map((rect) => rect.height), 8);
+  return font * Math.max(matchLength, 1) * 0.85;
+};
+
+const unionNearbyRects = (rects) => {
+  if (rects.length <= 1) return rects;
+  const clusters = [];
+  rects.forEach((rect) => {
+    const last = clusters[clusters.length - 1];
+    if (!last) {
+      clusters.push(rect);
+      return;
+    }
+    const gap = rect.left - (last.left + last.width);
+    const limit = Math.max(last.height, rect.height, 8) * 2.2;
+    if (gap <= limit) {
+      clusters[clusters.length - 1] = unionRects([last, rect]);
+    } else {
+      clusters.push(rect);
+    }
+  });
+  return clusters;
+};
+
+/**
+ * Box for a regex match: only the mapped substring of that line/run, never a
+ * page-wide union of distant items that happened to sit on the same Y.
+ */
 const rectsForMatch = (map, start, length, viewport) => {
-  const slice = map.slice(start, start + Math.max(length, 1)).filter((entry) => entry && !entry.space);
-  if (!slice.length) return itemToViewportRect(map[start]?.item || {}, viewport);
+  const matchLength = Math.max(length, 1);
+  const slice = map.slice(start, start + matchLength).filter((entry) => entry && !entry.space);
+  if (!slice.length) {
+    const fallback = map[start];
+    if (!fallback?.item) return { left: 0, top: 0, width: 12, height: 10 };
+    return itemToViewportRect(fallback.item, viewport, Math.max(fallback.offset, 0), 1);
+  }
 
   const groups = [];
   slice.forEach((entry) => {
     const current = groups[groups.length - 1];
+    const offset = Math.max(entry.offset, 0);
     if (current && current.item === entry.item) {
-      current.length += 1;
+      current.end = Math.max(current.end, offset);
     } else {
-      groups.push({ item: entry.item, start: Math.max(entry.offset, 0), length: 1 });
+      groups.push({ item: entry.item, start: offset, end: offset });
     }
   });
 
-  return unionRects(
-    groups.map((group) => itemToViewportRect(group.item, viewport, group.start, group.length)),
+  const rects = groups.map((group) =>
+    itemToViewportRect(group.item, viewport, group.start, group.end - group.start + 1),
   );
+  const nearby = unionNearbyRects(rects);
+  const expected = expectedCodeWidth(rects, matchLength);
+  const chosen =
+    nearby.find((rect) => rect.width <= expected * 1.6) ||
+    nearby.reduce((smallest, rect) => (rect.width < smallest.width ? rect : smallest), nearby[0]);
+
+  return {
+    ...chosen,
+    width: Math.min(chosen.width, expected * 1.35),
+  };
 };
 
 export const normalizeDrawingCode = (raw) => {
@@ -296,15 +355,12 @@ export const scanPageCodes = (textContent, viewport, regexSource, pageNumber = 1
   const hotspots = [];
 
   lines.forEach((line, lineIndex) => {
-    const joined = joinBoxes(line.boxes);
-    addMatches(hotspots, joined, regexSource, viewport, pageNumber, `line:${lineIndex}`);
-    addMatches(hotspots, compactJoin(joined), regexSource, viewport, pageNumber, `compact:${lineIndex}`);
+    splitVisualRuns(line.boxes).forEach((run, runIndex) => {
+      const joined = joinBoxes(run);
+      addMatches(hotspots, joined, regexSource, viewport, pageNumber, `line:${lineIndex}:${runIndex}`);
+      addMatches(hotspots, compactJoin(joined), regexSource, viewport, pageNumber, `compact:${lineIndex}:${runIndex}`);
+    });
   });
-
-  if (boxes.length) {
-    const pageJoined = joinBoxes([...boxes].sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left));
-    addMatches(hotspots, compactJoin(pageJoined), regexSource, viewport, pageNumber, 'page');
-  }
 
   const sample = lines
     .map((line) => joinBoxes(line.boxes).text.trim())

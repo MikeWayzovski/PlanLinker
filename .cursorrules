@@ -42,6 +42,9 @@ In `src/i18n/`:
 
 ## Coding Standards & Best Practices
 
+### 0. Versioning (mandatory on every shipped change)
+Always increment the project version when shipping a feature or fix: `package.json`, `package-lock.json` root/`packages.""` version, and `src/appInfo.js` (`APP_VERSION`). Patch for fixes (`1.7.0` → `1.7.1`), minor for features. Display stays on `APP_VERSION` (footer / Settings).
+
 ### 1. PDF Rendering & Hotspots
 - Use `pdfjs-dist` to render PDF pages onto HTML5 Canvas or SVG text layers.
 - Extract text content layer coordinates to make drawing codes (e.g. `DET-01`, `ST-102`) clickable hotspots.
