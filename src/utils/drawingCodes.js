@@ -24,53 +24,86 @@ const itemString = (item) =>
     .replace(UNICODE_HYPHEN, '-')
     .replace(/\u00a0/g, ' ');
 
-const fontSizeOf = (item) => {
-  const tx = item?.transform || [1, 0, 0, 1, 0, 0];
-  return item?.height || Math.hypot(tx[2], tx[3]) || 10;
+/** Concatenate PDF transforms: apply `second`, then `first` (same as pdf.js `Util.transform`). */
+const multiplyTransform = (first, second) => [
+  first[0] * second[0] + first[2] * second[1],
+  first[1] * second[0] + first[3] * second[1],
+  first[0] * second[2] + first[2] * second[3],
+  first[1] * second[2] + first[3] * second[3],
+  first[0] * second[4] + first[2] * second[5] + first[4],
+  first[1] * second[4] + first[3] * second[5] + first[5],
+];
+
+const aabbFromPoints = (points) => {
+  const xs = points.map((point) => point[0]);
+  const ys = points.map((point) => point[1]);
+  const left = Math.min(...xs);
+  const top = Math.min(...ys);
+  return {
+    left,
+    top,
+    width: Math.max(...xs) - left,
+    height: Math.max(...ys) - top,
+  };
 };
 
 /**
  * Convert a PDF.js text item (and optional substring range) into viewport CSS pixels.
+ *
+ * Do not add `item.width` / `item.height` onto the PDF-space origin and then
+ * run `convertToViewportRectangle`. On CAD/TrueType exports those sizes are often
+ * glyph units, which stretches every hotspot into a tall overlapping strip.
+ * Match the PDF.js text layer: combine viewport × text matrix, then size the box
+ * from the transformed advance and font vectors.
  */
 export const itemToViewportRect = (item, viewport, start = 0, length = itemString(item).length) => {
   const text = itemString(item);
-  const tx = item.transform || [1, 0, 0, 1, 0, 0];
-  const fontHeight = fontSizeOf(item);
-  const originX = tx[4];
-  const originY = tx[5];
-  const fullWidth = item.width || 0;
-  const ratioStart = text.length ? start / text.length : 0;
-  const ratioLength = text.length ? Math.max(length, 1) / text.length : 1;
-  const x0 = originX + fullWidth * ratioStart;
-  const x1 = x0 + fullWidth * ratioLength;
-  const y0 = originY;
-  const y1 = originY + fontHeight;
+  const src = item.transform || [1, 0, 0, 1, 0, 0];
+  const vp = viewport?.transform || [1, 0, 0, 1, 0, 0];
+  const tx = multiplyTransform(vp, src);
 
-  let left;
-  let top;
-  let width;
-  let height;
+  const fontHeight = Math.hypot(tx[2], tx[3]) || 8;
+  const runScale = Math.hypot(tx[0], tx[1]) || 1;
+  const srcScale = Math.hypot(src[0], src[1]) || 1;
+  const charCount = Math.max(text.length, 1);
 
-  if (typeof viewport.convertToViewportRectangle === 'function') {
-    const vr = viewport.convertToViewportRectangle([x0, y0, x1, y1]);
-    left = Math.min(vr[0], vr[2]);
-    top = Math.min(vr[1], vr[3]);
-    width = Math.abs(vr[2] - vr[0]);
-    height = Math.abs(vr[3] - vr[1]);
-  } else {
-    const [vx0, vy0] = viewport.convertToViewportPoint(x0, originY);
-    const [vx1, vy1] = viewport.convertToViewportPoint(x1, originY - fontHeight);
-    left = Math.min(vx0, vx1);
-    top = Math.min(vy0, vy1);
-    width = Math.abs(vx1 - vx0);
-    height = Math.abs(vy1 - vy0);
-  }
+  let runWidth = Number(item.width) || 0;
+  if (runWidth > 0) runWidth *= runScale / srcScale;
+  if (runWidth < 1) runWidth = fontHeight * 0.55 * charCount;
 
+  const maxRun = fontHeight * charCount * 2.4;
+  if (runWidth > maxRun) runWidth = maxRun;
+
+  const ratioStart = start / charCount;
+  const ratioLength = Math.max(length, 1) / charCount;
+  const offset = runWidth * ratioStart;
+  const advance = Math.max(runWidth * ratioLength, fontHeight * 0.35);
+
+  const angle = Math.atan2(tx[1], tx[0]);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const originX = tx[4] + offset * cos;
+  const originY = tx[5] + offset * sin;
+
+  const upLen = Math.hypot(tx[2], tx[3]) || 1;
+  const upX = (tx[2] / upLen) * fontHeight;
+  const upY = (tx[3] / upLen) * fontHeight;
+  const alongX = advance * cos;
+  const alongY = advance * sin;
+
+  const box = aabbFromPoints([
+    [originX, originY],
+    [originX + alongX, originY + alongY],
+    [originX + upX, originY + upY],
+    [originX + alongX + upX, originY + alongY + upY],
+  ]);
+
+  const maxEdge = advance + fontHeight * 1.25;
   return {
-    left,
-    top,
-    width: Math.max(width, 12),
-    height: Math.max(height, 10),
+    left: box.left,
+    top: box.top,
+    width: Math.max(Math.min(box.width, maxEdge), 8),
+    height: Math.max(Math.min(box.height, maxEdge), 8),
   };
 };
 
@@ -107,12 +140,13 @@ const clusterLines = (boxes) => {
   const lines = [];
 
   sorted.forEach((box) => {
-    const tolerance = Math.max(box.rect.height, 8) * 0.65;
+    const lineHeight = Math.min(Math.max(box.rect.height, 8), 28);
+    const tolerance = lineHeight * 0.65;
     const current = lines[lines.length - 1];
     const canJoin =
       current &&
       !current.boxes[current.boxes.length - 1]?.hasEOL &&
-      Math.abs(current.midY - box.midY) <= Math.max(tolerance, current.height * 0.65);
+      Math.abs(current.midY - box.midY) <= Math.max(tolerance, Math.min(current.height, 28) * 0.65);
 
     if (canJoin) {
       current.boxes.push(box);
