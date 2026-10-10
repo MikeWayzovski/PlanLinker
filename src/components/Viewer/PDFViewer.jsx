@@ -13,10 +13,13 @@ const WHEEL_ZOOM_OUT = 0.9;
 const BUTTON_ZOOM_STEP = 1.2;
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 8;
+const LOW_MEMORY_MAX_SCALE = 1.5;
 const FIT_PADDING = 88;
 const MIN_MARQUEE_PX = 12;
+const NAVIGATION_IDLE_MS = 180;
 
-const clampScale = (value) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number(value.toFixed(3))));
+const clampScale = (value, max = MAX_SCALE) =>
+  Math.min(max, Math.max(MIN_SCALE, Number(value.toFixed(3))));
 
 const stageIsVisible = (node) => {
   if (!node) return false;
@@ -53,6 +56,9 @@ const PDFViewer = ({
   busyLabel,
   extraToolbar,
   lookupDescription,
+  lowMemoryMode = false,
+  showCanvas = true,
+  onToggleCanvas,
 }) => {
   const stageRef = useRef(null);
   const overlayRef = useRef(null);
@@ -60,6 +66,7 @@ const PDFViewer = ({
   const boxZoomRef = useRef({ active: false, start: null });
   const pendingBoxZoomRef = useRef(null);
   const resolveGenRef = useRef(0);
+  const navIdleRef = useRef(0);
   const { pdf, pageCount, isLoading, error } = usePDF(source, sourceKey);
   const [pageNumber] = useState(1);
   const [scale, setScale] = useState(1);
@@ -67,19 +74,45 @@ const PDFViewer = ({
   const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
   const [tool, setTool] = useState('select');
   const [propertiesOpen, setPropertiesOpen] = useState(true);
-  const [showCanvas, setShowCanvas] = useState(true);
   const [showHotspots, setShowHotspots] = useState(true);
+  const [isNavigating, setIsNavigating] = useState(false);
   const [hotspots, setHotspots] = useState([]);
   const [scan, setScan] = useState(null);
   const [selectedHotspot, setSelectedHotspot] = useState(null);
   const [matchedFiles, setMatchedFiles] = useState([]);
   const [isResolving, setIsResolving] = useState(false);
   const [marquee, setMarquee] = useState(null);
+  const scaleCap = lowMemoryMode ? LOW_MEMORY_MAX_SCALE : MAX_SCALE;
+  const viewScale = Math.min(scale, scaleCap);
 
-  const zoomBy = useCallback((factor) => {
-    setFitMode(null);
-    setScale((current) => clampScale(current * factor));
+  const markNavigating = useCallback(() => {
+    setIsNavigating(true);
+    window.clearTimeout(navIdleRef.current);
+    navIdleRef.current = window.setTimeout(() => setIsNavigating(false), NAVIGATION_IDLE_MS);
   }, []);
+
+  const setCanvasVisible = useCallback(
+    (visible) => {
+      onToggleCanvas?.(Boolean(visible));
+    },
+    [onToggleCanvas],
+  );
+
+  const zoomBy = useCallback(
+    (factor) => {
+      markNavigating();
+      setFitMode(null);
+      setScale((current) => clampScale(current * factor, scaleCap));
+    },
+    [markNavigating, scaleCap],
+  );
+
+  useEffect(
+    () => () => {
+      window.clearTimeout(navIdleRef.current);
+    },
+    [],
+  );
 
   const fitToView = useCallback(() => {
     pendingBoxZoomRef.current = null;
@@ -164,16 +197,19 @@ const PDFViewer = ({
         scrollTop: stage.scrollTop,
       };
       stage.classList.add('is-panning');
+      markNavigating();
       event.preventDefault();
     };
     const onMove = (event) => {
       if (!panRef.current.active) return;
+      markNavigating();
       stage.scrollLeft = panRef.current.scrollLeft - (event.clientX - panRef.current.x);
       stage.scrollTop = panRef.current.scrollTop - (event.clientY - panRef.current.y);
     };
     const onUp = () => {
       panRef.current.active = false;
       stage.classList.remove('is-panning');
+      markNavigating();
     };
 
     stage.addEventListener('mousedown', onDown);
@@ -185,7 +221,7 @@ const PDFViewer = ({
       window.removeEventListener('mouseup', onUp);
       stage.classList.remove('is-panning');
     };
-  }, [tool]);
+  }, [tool, markNavigating]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -244,8 +280,11 @@ const PDFViewer = ({
         fracW: selectedWidth / canvasRect.width,
         fracH: selectedHeight / canvasRect.height,
       };
+      markNavigating();
       setFitMode(null);
-      setScale((current) => clampScale(current * Math.min(viewW / selectedWidth, viewH / selectedHeight)));
+      setScale((current) =>
+        clampScale(current * Math.min(viewW / selectedWidth, viewH / selectedHeight), scaleCap),
+      );
     };
 
     stage.addEventListener('mousedown', onDown);
@@ -258,7 +297,7 @@ const PDFViewer = ({
       boxZoomRef.current = { active: false, start: null };
       setMarquee(null);
     };
-  }, [tool]);
+  }, [tool, markNavigating, scaleCap]);
 
   useEffect(() => {
     if (!fitMode || !pageSize.width || !pageSize.height) return undefined;
@@ -271,7 +310,7 @@ const PDFViewer = ({
       const availableHeight = Math.max(node.clientHeight - FIT_PADDING, 1);
       const widthScale = availableWidth / pageSize.width;
       const heightScale = availableHeight / pageSize.height;
-      const next = clampScale(fitMode === 'page' ? Math.min(widthScale, heightScale) : widthScale);
+      const next = clampScale(fitMode === 'page' ? Math.min(widthScale, heightScale) : widthScale, scaleCap);
       setScale((current) => (current === next ? current : next));
     };
 
@@ -291,7 +330,7 @@ const PDFViewer = ({
       window.removeEventListener('resize', schedule);
       window.visualViewport?.removeEventListener('resize', schedule);
     };
-  }, [fitMode, pageSize.width, pageSize.height, sourceKey, showPanel, propertiesOpen]);
+  }, [fitMode, pageSize.width, pageSize.height, sourceKey, showPanel, propertiesOpen, scaleCap]);
 
   const applyPendingBoxZoom = useCallback(() => {
     const pending = pendingBoxZoomRef.current;
@@ -380,7 +419,7 @@ const PDFViewer = ({
       <ViewerNavbar title={title} />
       <div className="template-2d-viewer-main">
         <div
-          className={`viewer-stage${tool === 'pan' ? ' is-pan' : ''}${tool === 'boxzoom' ? ' is-boxzoom' : ''}`}
+          className={`viewer-stage${tool === 'pan' ? ' is-pan' : ''}${tool === 'boxzoom' ? ' is-boxzoom' : ''}${lowMemoryMode ? ' is-low-memory' : ''}`}
           ref={stageRef}
         >
           {isLoading ? (
@@ -397,7 +436,7 @@ const PDFViewer = ({
             <CanvasPage
               pdf={pdf}
               pageNumber={pageNumber}
-              scale={scale}
+              scale={viewScale}
               codeRegex={codeRegex}
               onHotspots={handleHotspots}
               onSelectHotspot={handleCanvasSelect}
@@ -409,6 +448,8 @@ const PDFViewer = ({
               showHotspots={showHotspots}
               interactionMode={tool}
               onRendered={applyPendingBoxZoom}
+              lowMemoryMode={lowMemoryMode}
+              scanPaused={isNavigating}
             />
           ) : null}
         </div>
@@ -447,7 +488,7 @@ const PDFViewer = ({
         >
           <LayerPanel
             showCanvas={showCanvas}
-            onToggleCanvas={setShowCanvas}
+            onToggleCanvas={setCanvasVisible}
             showHotspots={showHotspots}
             onToggleHotspots={setShowHotspots}
             hotspots={hotspots}

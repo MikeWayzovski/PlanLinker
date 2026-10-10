@@ -492,6 +492,9 @@ function App() {
             codeRegex={settings.codeRegex}
             showPanel={settings.showHotspotPanel}
             onTogglePanel={() => updateSetting('showHotspotPanel', !settings.showHotspotPanel)}
+            lowMemoryMode={Boolean(settings.lowMemoryMode)}
+            showCanvas={settings.showCanvas !== false}
+            onToggleCanvas={(visible) => updateSetting('showCanvas', visible)}
             settingsOpen={settingsOpen}
             onToggleSettings={() => setSettingsOpen((open) => !open)}
             onHotspotClick={handleHotspot}

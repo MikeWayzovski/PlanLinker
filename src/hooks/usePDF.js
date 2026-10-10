@@ -20,19 +20,34 @@ export const usePDF = (source, sourceKey = '') => {
 
     let cancelled = false;
     let loadingTask = null;
+    let pdfDocument = null;
+    let destroyed = false;
+
+    const destroy = () => {
+      if (destroyed) return;
+      destroyed = true;
+      if (pdfDocument) {
+        pdfDocument.destroy();
+        pdfDocument = null;
+        return;
+      }
+      if (loadingTask) {
+        loadingTask.destroy().catch(() => {});
+      }
+    };
 
     const load = async () => {
       setIsLoading(true);
       setError(null);
       try {
         loadingTask = pdfjsLib.getDocument(source);
-        const document = await loadingTask.promise;
+        pdfDocument = await loadingTask.promise;
         if (cancelled) {
-          document.destroy();
+          destroy();
           return;
         }
-        setPdf(document);
-        setPageCount(document.numPages);
+        setPdf(pdfDocument);
+        setPageCount(pdfDocument.numPages);
       } catch (loadError) {
         Logger.error('Could not open the PDF', loadError.message);
         if (!cancelled) {
@@ -49,9 +64,7 @@ export const usePDF = (source, sourceKey = '') => {
 
     return () => {
       cancelled = true;
-      if (loadingTask) {
-        loadingTask.destroy().catch(() => {});
-      }
+      destroy();
     };
   }, [source, sourceKey]);
 

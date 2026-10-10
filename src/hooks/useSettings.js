@@ -12,6 +12,8 @@ const DEFAULTS = {
   codeRegex: DEFAULT_CODE_REGEX,
   fallbackFolder: '',
   showHotspotPanel: true,
+  lowMemoryMode: false,
+  showCanvas: true,
 };
 
 const read = () => {

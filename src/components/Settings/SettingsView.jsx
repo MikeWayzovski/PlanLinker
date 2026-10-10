@@ -180,6 +180,50 @@ const SettingsView = ({
       </SectionCard>
 
       <SectionCard
+        title="Performance"
+        description="Keep Plan Linker responsive on lighter devices and slower connections."
+      >
+        <div>
+          <div className="form-check form-switch">
+            <input
+              id="settings-low-memory"
+              className="form-check-input"
+              type="checkbox"
+              role="switch"
+              checked={Boolean(settings.lowMemoryMode)}
+              onChange={(event) => updateSetting('lowMemoryMode', event.target.checked)}
+            />
+            <label className="form-check-label" htmlFor="settings-low-memory">
+              Low-Memory Mode (Snelle Navigatie)
+            </label>
+          </div>
+          <div className="form-text">
+            Verlaagt de renderkwaliteit en uitschakelt zware visuele effecten voor maximale snelheid op lichtere
+            apparaten.
+          </div>
+        </div>
+        <div>
+          <div className="form-check form-switch">
+            <input
+              id="settings-show-canvas"
+              className="form-check-input"
+              type="checkbox"
+              role="switch"
+              checked={settings.showCanvas !== false}
+              onChange={(event) => updateSetting('showCanvas', event.target.checked)}
+            />
+            <label className="form-check-label" htmlFor="settings-show-canvas">
+              Show PDF drawing
+            </label>
+          </div>
+          <div className="form-text">
+            Turn off to hide the PDF canvas and navigate from the hotspot list or text layer only. The same switch is
+            available as PDF drawing in Layer management.
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard
         title="Drawing index"
         description="A project drawing list maps codes such as UO101 to titles used in search and hotspot tooltips."
       >
